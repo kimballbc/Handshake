@@ -10,6 +10,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,12 +23,15 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.bck.handshake.ui.theme.HandshakeSliderConfirmed
 import com.bck.handshake.ui.theme.HandshakeSliderUnconfirmed
 import com.bck.handshake.ui.theme.HandshakeSliderTextConfirmed
 import com.bck.handshake.ui.theme.HandshakeSliderTextUnconfirmed
+import com.bck.handshake.ui.theme.indieFlower
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -138,7 +142,8 @@ fun HandshakeSlider(
             if (!state.hasConfirmed) {
                 Text(
                     text = "Slide to Confirm",
-                    color = HandshakeSliderTextUnconfirmed
+                    color = Color.DarkGray,
+                    style = MaterialTheme.typography.bodyMedium
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -152,8 +157,13 @@ fun HandshakeSlider(
                     .background(
                         if (state.hasConfirmed) 
                             HandshakeSliderConfirmed.copy(alpha = backgroundColor)
-                        else HandshakeSliderUnconfirmed.copy(alpha = backgroundColor),
+                        else Color.White,
                         RoundedCornerShape(50)
+                    )
+                    .border(
+                        width = 2.dp,
+                        color = Color.Black,
+                        shape = RoundedCornerShape(50)
                     )
                     .padding(HandshakeSliderDefaults.SliderPadding)
             ) {
@@ -190,8 +200,10 @@ fun HandshakeSlider(
                     Text(
                         text = "Confirmed",
                         color = Color.Black,
-                        modifier = Modifier.align(Alignment.Center),
-                        style = MaterialTheme.typography.bodyLarge
+                        fontFamily = indieFlower,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.Center)
                     )
                 }
             }

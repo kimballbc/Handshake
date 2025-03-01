@@ -31,7 +31,6 @@ import kotlinx.coroutines.launch
  * - A user profile section with avatar and betting records
  * - A "New Bet" button for initiating new bets
  * - A HandshakeSlider component for confirming actions
- * - A Snackbar for displaying confirmation messages
  *
  * @param onNewBetClicked Callback function triggered when the user initiates a new bet
  * @param modifier Optional modifier for customizing the screen's layout
@@ -41,73 +40,60 @@ fun AccountScreen(
     onNewBetClicked: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-
     Surface(
         color = MaterialTheme.colorScheme.background,
         modifier = Modifier.fillMaxSize()
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // User Profile Section
             Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // create an Icon that used the Person icon from the Material Icons library.
-                    Icon(
-                        imageVector = Icons.Filled.Person,
-                        contentDescription = "User image",
-                        modifier = Modifier
-                            .padding(top = 16.dp)
-                            .size(86.dp)
-                            .clip(CircleShape)
-                            .border(2.dp, Color.Black, CircleShape)
-                    )
-                    // Add the subheader.
-                    Text(
-                        text = sampleRecords.formattedRecords,
-                        modifier = Modifier.padding(16.dp),
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = onNewBetClicked,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        Text(text = "New Bet")
-                    }
-                }
-
-                // Add HandshakeSlider at the bottom
-                Box(
+                // User Avatar
+                Icon(
+                    imageVector = Icons.Filled.Person,
+                    contentDescription = "User image",
+                    modifier = Modifier
+                        .padding(top = 16.dp)
+                        .size(86.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, Color.Black, CircleShape)
+                )
+                // Betting Records
+                Text(
+                    text = sampleRecords.formattedRecords,
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.labelMedium
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                // New Bet Button
+                Button(
+                    onClick = onNewBetClicked,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 26.dp),
-                    contentAlignment = Alignment.Center
+                        .height(48.dp)
+                        .padding(horizontal = 24.dp)
                 ) {
-                    HandshakeSlider(
-                        onConfirmed = {
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Confirmed!", duration = SnackbarDuration.Short)
-                                onNewBetClicked()
-                            }
-                        }
-                    )
+                    Text(text = "New Bet")
                 }
             }
 
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
+            // Confirmation Slider
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 26.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                HandshakeSlider(
+                    onConfirmed = onNewBetClicked
+                )
+            }
         }
     }
 }
