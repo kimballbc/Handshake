@@ -56,18 +56,13 @@ fun LandingScreen(navController: NavController) {
                     .testTag("sideBet_logo")
             )
 
-            // Bottom section with slider and buttons
+            // Bottom section with buttons
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 26.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                HandshakeSliderNew(
-                    onConfirmed = { navController.navigate("account") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
                 Button(
                     onClick = { navController.navigate("account") },
                     modifier = Modifier
