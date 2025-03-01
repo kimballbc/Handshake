@@ -1,6 +1,6 @@
-package com.bck.thesidebet.data
+package com.bck.handshake.data
 
-import com.bck.thesidebet.R
+import com.bck.handshake.R
 
 data class Records(
     val wins: String,
