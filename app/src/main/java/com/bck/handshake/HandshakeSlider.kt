@@ -134,15 +134,15 @@ fun HandshakeSlider(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Status text
-            Text(
-                text = if (state.hasConfirmed) "Confirmed!" else "Slide to Confirm",
-                color = if (state.hasConfirmed) 
-                    HandshakeSliderTextConfirmed
-                else HandshakeSliderTextUnconfirmed
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
+            // Status text - only show when not confirmed
+            if (!state.hasConfirmed) {
+                Text(
+                    text = "Slide to Confirm",
+                    color = HandshakeSliderTextUnconfirmed
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
             // Main slider container
             Box(
@@ -157,36 +157,43 @@ fun HandshakeSlider(
                     )
                     .padding(HandshakeSliderDefaults.SliderPadding)
             ) {
-                // Left hand - draggable
-                DraggableHand(
-                    offsetX = state.leftOffsetX,
-                    maxOffset = maxOffset,
-                    isLeft = true,
-                    onDragEnd = {
-                        if (!state.hasConfirmed && state.leftOffsetX < maxOffset * HandshakeSliderDefaults.ConfirmationThreshold) {
-                            state.leftOffsetX = 0f
-                        }
-                    },
-                    onDrag = { dragAmount ->
-                        val newValue = state.leftOffsetX + dragAmount
-                        state.leftOffsetX = newValue.coerceIn(0f, maxOffset)
-
-                        if (!state.hasConfirmed && state.leftOffsetX >= maxOffset * HandshakeSliderDefaults.ConfirmationThreshold) {
-                            state.hasConfirmed = true
-                            scope.launch {
-                                delay(HandshakeSliderDefaults.ResetDelay)
-                                state.reset()
+                // Only show hands if not confirmed
+                if (!state.hasConfirmed) {
+                    // Left hand - draggable
+                    DraggableHand(
+                        offsetX = state.leftOffsetX,
+                        maxOffset = maxOffset,
+                        isLeft = true,
+                        onDragEnd = {
+                            if (!state.hasConfirmed && state.leftOffsetX < maxOffset * HandshakeSliderDefaults.ConfirmationThreshold) {
+                                state.leftOffsetX = 0f
                             }
-                            onConfirmed()
-                        }
-                    }
-                )
+                        },
+                        onDrag = { dragAmount ->
+                            val newValue = state.leftOffsetX + dragAmount
+                            state.leftOffsetX = newValue.coerceIn(0f, maxOffset)
 
-                // Right hand - mirrors left hand movement
-                StaticHand(
-                    offsetX = rightOffsetX,
-                    isLeft = false
-                )
+                            if (!state.hasConfirmed && state.leftOffsetX >= maxOffset * HandshakeSliderDefaults.ConfirmationThreshold) {
+                                state.hasConfirmed = true
+                                onConfirmed()
+                            }
+                        }
+                    )
+
+                    // Right hand - mirrors left hand movement
+                    StaticHand(
+                        offsetX = rightOffsetX,
+                        isLeft = false
+                    )
+                } else {
+                    // Show confirmed text when confirmed
+                    Text(
+                        text = "Confirmed",
+                        color = Color.Black,
+                        modifier = Modifier.align(Alignment.Center),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
             }
         }
     }
