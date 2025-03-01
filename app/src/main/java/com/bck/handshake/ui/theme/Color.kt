@@ -13,3 +13,9 @@ val Pink40 = Color(0xFF7D5260)
 val Black = Color(0xFF000000)
 val DarkGrey = Color(0xFF1C1B1F)
 val MedGrey = Color(0xFF625B71)
+
+// HandshakeSlider colors
+val HandshakeSliderUnconfirmed = Color.LightGray
+val HandshakeSliderConfirmed = Color.Green
+val HandshakeSliderTextUnconfirmed = Color.Gray
+val HandshakeSliderTextConfirmed = Color.Green

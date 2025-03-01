@@ -63,15 +63,14 @@ fun AccountScreen(
             }
 
             // Add HandshakeSlider at the bottom
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 26.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                contentAlignment = Alignment.Center
             ) {
                 HandshakeSlider(
-                    onConfirmed = onNewBetClicked,
-                    modifier = Modifier.fillMaxWidth()
+                    onConfirmed = onNewBetClicked
                 )
             }
         }

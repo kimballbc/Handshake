@@ -1,6 +1,8 @@
 package com.bck.handshake
 
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -17,8 +19,44 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.bck.handshake.ui.theme.HandshakeSliderConfirmed
+import com.bck.handshake.ui.theme.HandshakeSliderUnconfirmed
+import com.bck.handshake.ui.theme.HandshakeSliderTextConfirmed
+import com.bck.handshake.ui.theme.HandshakeSliderTextUnconfirmed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private object HandshakeSliderDefaults {
+    val SliderWidth = 300.dp
+    val HandSize = 60.dp
+    val SliderPadding = 8.dp
+    val HandPadding = 20.dp
+    val ConfirmationThreshold = 0.9f
+    const val ResetDelay = 250L
+    val BackgroundAnimationSpec: AnimationSpec<Float> = tween(300)
+}
+
+/**
+ * State holder for the HandshakeSlider
+ */
+@Stable
+class HandshakeSliderState {
+    var leftOffsetX by mutableStateOf(0f)
+    var hasConfirmed by mutableStateOf(false)
+    
+    fun reset() {
+        leftOffsetX = 0f
+        hasConfirmed = false
+    }
+}
+
+/**
+ * Remember helper for HandshakeSliderState
+ */
+@Composable
+fun rememberHandshakeSliderState(): HandshakeSliderState {
+    return remember { HandshakeSliderState() }
+}
 
 /**
  * A custom slider component that implements a handshake confirmation gesture.
@@ -33,52 +71,54 @@ import kotlinx.coroutines.launch
  *
  * @param onConfirmed Callback function triggered when the hands meet in the middle
  * @param modifier Optional modifier for customizing the component's layout
+ * @param state Optional state holder for the slider
  */
 @Composable
 fun HandshakeSlider(
     onConfirmed: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    state: HandshakeSliderState = rememberHandshakeSliderState()
 ) {
-    // Constants for slider dimensions
-    val sliderWidth = 300.dp
-    val handSize = 60.dp
-    val sliderPadding = 8.dp
-    val handPadding = 20.dp
-    
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val density = LocalDensity.current
 
-    // Calculate the maximum distance the left hand can move
-    // We divide by 2 since the hands meet in the middle
-    val maxOffset = with(LocalDensity.current) {
-        (sliderWidth.toPx() - handSize.toPx() - handPadding.toPx()) / 2
+    // Calculate the maximum offset once and remember it
+    val maxOffset = remember(density) {
+        with(density) {
+            (HandshakeSliderDefaults.SliderWidth.toPx() - 
+             HandshakeSliderDefaults.HandSize.toPx() - 
+             HandshakeSliderDefaults.HandPadding.toPx()) / 2
+        }
     }
-
-    // State management
-    var leftOffsetX by remember { mutableStateOf(0f) }  // Position of left hand
-    var hasConfirmed by remember { mutableStateOf(false) }  // Confirmation state
 
     // Calculate the right hand position as a mirror of the left hand
-    // As left hand moves right, right hand moves left by the same amount
-    val rightOffsetX = with(LocalDensity.current) {
-        sliderWidth.toPx() - handSize.toPx() - handPadding.toPx() - leftOffsetX
+    val rightOffsetX = remember(state.leftOffsetX, density) {
+        with(density) {
+            HandshakeSliderDefaults.SliderWidth.toPx() - 
+            HandshakeSliderDefaults.HandSize.toPx() - 
+            HandshakeSliderDefaults.HandPadding.toPx() - 
+            state.leftOffsetX
+        }
     }
 
-    // Animated background opacity that changes on confirmation
+    // Animated background opacity
     val backgroundColor by animateFloatAsState(
-        targetValue = if (hasConfirmed) 0.6f else 0.3f,
+        targetValue = if (state.hasConfirmed) 0.6f else 0.3f,
+        animationSpec = HandshakeSliderDefaults.BackgroundAnimationSpec,
         label = "backgroundColor"
     )
 
-    Box(modifier = modifier) {
+    Box(modifier = modifier.padding(16.dp)) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(16.dp)
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Status text that changes based on confirmation state
+            // Status text
             Text(
-                text = if (hasConfirmed) "Confirmed!" else "Slide to Confirm",
-                color = if (hasConfirmed) Color.Green else Color.Gray
+                text = if (state.hasConfirmed) "Confirmed!" else "Slide to Confirm",
+                color = if (state.hasConfirmed) 
+                    HandshakeSliderTextConfirmed
+                else HandshakeSliderTextUnconfirmed
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -86,75 +126,50 @@ fun HandshakeSlider(
             // Main slider container
             Box(
                 modifier = Modifier
-                    .width(sliderWidth)
+                    .width(HandshakeSliderDefaults.SliderWidth)
                     .height(80.dp)
                     .background(
-                        if (hasConfirmed) Color.Green.copy(alpha = backgroundColor)
-                        else Color.LightGray.copy(alpha = backgroundColor),
+                        if (state.hasConfirmed) 
+                            HandshakeSliderConfirmed.copy(alpha = backgroundColor)
+                        else HandshakeSliderUnconfirmed.copy(alpha = backgroundColor),
                         RoundedCornerShape(50)
                     )
-                    .padding(sliderPadding)
+                    .padding(HandshakeSliderDefaults.SliderPadding)
             ) {
                 // Left hand - draggable
-                Box(
-                    modifier = Modifier
-                        .size(handSize)
-                        .offset(x = with(LocalDensity.current) { leftOffsetX.toDp() })
-                        .background(Color.Transparent)
-                        .pointerInput(Unit) {
-                            detectHorizontalDragGestures(
-                                onDragEnd = {
-                                    if (!hasConfirmed && leftOffsetX < maxOffset * 0.9f) {
-                                        leftOffsetX = 0f
-                                    }
-                                }
-                            ) { _, dragAmount ->
-                                val newValue = leftOffsetX + dragAmount
-                                leftOffsetX = newValue.coerceIn(0f, maxOffset)
-
-                                if (!hasConfirmed && leftOffsetX >= maxOffset * 0.9f) {
-                                    hasConfirmed = true
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Confirmed!", duration = SnackbarDuration.Short)
-                                        delay(250) // Wait for .25 second
-                                        leftOffsetX = 0f // Reset position
-                                        hasConfirmed = false
-                                    }
-                                    onConfirmed()
-                                }
-                            }
+                DraggableHand(
+                    offsetX = state.leftOffsetX,
+                    maxOffset = maxOffset,
+                    isLeft = true,
+                    onDragEnd = {
+                        if (!state.hasConfirmed && state.leftOffsetX < maxOffset * HandshakeSliderDefaults.ConfirmationThreshold) {
+                            state.leftOffsetX = 0f
                         }
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.left_hand),
-                        contentDescription = "Left Hand",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(end = handPadding)
-                    )
-                }
+                    },
+                    onDrag = { dragAmount ->
+                        val newValue = state.leftOffsetX + dragAmount
+                        state.leftOffsetX = newValue.coerceIn(0f, maxOffset)
+
+                        if (!state.hasConfirmed && state.leftOffsetX >= maxOffset * HandshakeSliderDefaults.ConfirmationThreshold) {
+                            state.hasConfirmed = true
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Confirmed!", duration = SnackbarDuration.Short)
+                                delay(HandshakeSliderDefaults.ResetDelay)
+                                state.reset()
+                            }
+                            onConfirmed()
+                        }
+                    }
+                )
 
                 // Right hand - mirrors left hand movement
-                Box(
-                    modifier = Modifier
-                        .size(handSize)
-                        .offset(x = with(LocalDensity.current) { rightOffsetX.toDp() })
-                        .background(Color.Transparent)
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.right_hand),
-                        contentDescription = "Right Hand",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(start = handPadding)
-                    )
-                }
+                StaticHand(
+                    offsetX = rightOffsetX,
+                    isLeft = false
+                )
             }
         }
 
-        // Snackbar host
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter)
@@ -162,11 +177,73 @@ fun HandshakeSlider(
     }
 }
 
+@Composable
+private fun DraggableHand(
+    offsetX: Float,
+    maxOffset: Float,
+    isLeft: Boolean,
+    onDragEnd: () -> Unit,
+    onDrag: (Float) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(HandshakeSliderDefaults.HandSize)
+            .offset(x = with(LocalDensity.current) { offsetX.toDp() })
+            .background(Color.Transparent)
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragEnd = { onDragEnd() }
+                ) { _, dragAmount -> onDrag(dragAmount) }
+            }
+    ) {
+        Image(
+            painter = painterResource(
+                id = if (isLeft) R.drawable.left_hand else R.drawable.right_hand
+            ),
+            contentDescription = if (isLeft) "Left Hand" else "Right Hand",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    end = if (isLeft) HandshakeSliderDefaults.HandPadding else 0.dp,
+                    start = if (!isLeft) HandshakeSliderDefaults.HandPadding else 0.dp
+                )
+        )
+    }
+}
+
+@Composable
+private fun StaticHand(
+    offsetX: Float,
+    isLeft: Boolean
+) {
+    Box(
+        modifier = Modifier
+            .size(HandshakeSliderDefaults.HandSize)
+            .offset(x = with(LocalDensity.current) { offsetX.toDp() })
+            .background(Color.Transparent)
+    ) {
+        Image(
+            painter = painterResource(
+                id = if (isLeft) R.drawable.left_hand else R.drawable.right_hand
+            ),
+            contentDescription = if (isLeft) "Left Hand" else "Right Hand",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    end = if (isLeft) HandshakeSliderDefaults.HandPadding else 0.dp,
+                    start = if (!isLeft) HandshakeSliderDefaults.HandPadding else 0.dp
+                )
+        )
+    }
+}
+
 /**
- * Preview function for the HandshakeSliderNew component
+ * Preview function for the HandshakeSlider component
  */
 @Preview(showBackground = true)
 @Composable
-fun PreviewHandshakeSliderNew() {
+private fun PreviewHandshakeSlider() {
     HandshakeSlider(onConfirmed = {})
 } 
