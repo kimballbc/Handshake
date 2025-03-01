@@ -1,3 +1,8 @@
+/**
+ * HandshakeSlider component implementation.
+ * This file contains the slider component and its supporting classes for confirming actions
+ * through an interactive handshake gesture.
+ */
 package com.bck.handshake
 
 import androidx.compose.animation.core.AnimationSpec
@@ -26,24 +31,40 @@ import com.bck.handshake.ui.theme.HandshakeSliderTextUnconfirmed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * Default values and configurations for the HandshakeSlider component.
+ */
 private object HandshakeSliderDefaults {
+    /** Width of the slider container */
     val SliderWidth = 300.dp
+    /** Size of the hand icons */
     val HandSize = 60.dp
+    /** Padding around the slider container */
     val SliderPadding = 8.dp
+    /** Padding between hands and container edges */
     val HandPadding = 20.dp
+    /** Threshold for confirming the handshake (0.9 = 90% of max distance) */
     val ConfirmationThreshold = 0.9f
+    /** Delay before resetting the slider after confirmation */
     const val ResetDelay = 1000L
+    /** Animation specification for background color changes */
     val BackgroundAnimationSpec: AnimationSpec<Float> = tween(300)
 }
 
 /**
- * State holder for the HandshakeSlider
+ * State holder for the HandshakeSlider.
+ * Manages the position of the draggable hand and the confirmation state.
  */
 @Stable
 class HandshakeSliderState {
+    /** Current horizontal offset of the left hand */
     var leftOffsetX by mutableStateOf(0f)
+    /** Whether the handshake has been confirmed */
     var hasConfirmed by mutableStateOf(false)
     
+    /**
+     * Resets the slider to its initial state.
+     */
     fun reset() {
         leftOffsetX = 0f
         hasConfirmed = false
@@ -51,7 +72,8 @@ class HandshakeSliderState {
 }
 
 /**
- * Remember helper for HandshakeSliderState
+ * Creates and remembers a HandshakeSliderState instance.
+ * @return A new or remembered HandshakeSliderState
  */
 @Composable
 fun rememberHandshakeSliderState(): HandshakeSliderState {
@@ -67,7 +89,7 @@ fun rememberHandshakeSliderState(): HandshakeSliderState {
  * - Draggable left hand with spring-back animation if not confirmed
  * - Mirrored right hand that moves in response to the left hand
  * - Visual feedback with color changes and text updates
- * - Snackbar message on confirmation
+ * - Customizable confirmation threshold and reset delay
  *
  * @param onConfirmed Callback function triggered when the hands meet in the middle
  * @param modifier Optional modifier for customizing the component's layout
@@ -170,6 +192,16 @@ fun HandshakeSlider(
     }
 }
 
+/**
+ * Composable for the draggable hand in the HandshakeSlider.
+ * Handles drag gestures and updates the hand's position.
+ *
+ * @param offsetX Current horizontal offset of the hand
+ * @param maxOffset Maximum allowed offset for the hand
+ * @param isLeft Whether this is the left hand (true) or right hand (false)
+ * @param onDragEnd Callback triggered when drag gesture ends
+ * @param onDrag Callback triggered during drag with the drag amount
+ */
 @Composable
 private fun DraggableHand(
     offsetX: Float,
@@ -205,6 +237,13 @@ private fun DraggableHand(
     }
 }
 
+/**
+ * Composable for the static (non-draggable) hand in the HandshakeSlider.
+ * Mirrors the movement of the draggable hand.
+ *
+ * @param offsetX Current horizontal offset of the hand
+ * @param isLeft Whether this is the left hand (true) or right hand (false)
+ */
 @Composable
 private fun StaticHand(
     offsetX: Float,
@@ -233,7 +272,8 @@ private fun StaticHand(
 }
 
 /**
- * Preview function for the HandshakeSlider component
+ * Preview function for the HandshakeSlider component.
+ * Displays the slider in its default state.
  */
 @Preview(showBackground = true)
 @Composable

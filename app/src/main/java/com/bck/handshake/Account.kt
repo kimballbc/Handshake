@@ -1,4 +1,9 @@
+/**
+ * Account screen implementation for the Handshake application.
+ * This screen displays user profile information, betting records, and interaction controls.
+ */
 package com.bck.handshake
+
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -19,6 +24,18 @@ import kotlinx.coroutines.launch
 
 //navController.navigate(NewBetScreen().route)
 
+/**
+ * Composable function that creates the Account screen UI.
+ * 
+ * The Account screen consists of:
+ * - A user profile section with avatar and betting records
+ * - A "New Bet" button for initiating new bets
+ * - A HandshakeSlider component for confirming actions
+ * - A Snackbar for displaying confirmation messages
+ *
+ * @param onNewBetClicked Callback function triggered when the user initiates a new bet
+ * @param modifier Optional modifier for customizing the screen's layout
+ */
 @Composable
 fun AccountScreen(
     onNewBetClicked: () -> Unit,
