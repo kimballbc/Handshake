@@ -32,7 +32,7 @@ private object HandshakeSliderDefaults {
     val SliderPadding = 8.dp
     val HandPadding = 20.dp
     val ConfirmationThreshold = 0.9f
-    const val ResetDelay = 250L
+    const val ResetDelay = 1000L
     val BackgroundAnimationSpec: AnimationSpec<Float> = tween(300)
 }
 
@@ -80,7 +80,6 @@ fun HandshakeSlider(
     state: HandshakeSliderState = rememberHandshakeSliderState()
 ) {
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
     val density = LocalDensity.current
 
     // Calculate the maximum offset once and remember it
@@ -153,7 +152,6 @@ fun HandshakeSlider(
                         if (!state.hasConfirmed && state.leftOffsetX >= maxOffset * HandshakeSliderDefaults.ConfirmationThreshold) {
                             state.hasConfirmed = true
                             scope.launch {
-                                snackbarHostState.showSnackbar("Confirmed!", duration = SnackbarDuration.Short)
                                 delay(HandshakeSliderDefaults.ResetDelay)
                                 state.reset()
                             }
@@ -169,11 +167,6 @@ fun HandshakeSlider(
                 )
             }
         }
-
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
     }
 }
 
