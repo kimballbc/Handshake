@@ -10,91 +10,100 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.bck.handshake.data.sampleRecords
-import kotlinx.coroutines.launch
+import com.bck.handshake.navigation.BottomNavBar
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 
-
-//navController.navigate(NewBetScreen().route)
-
-/**
- * Composable function that creates the Account screen UI.
- * 
- * The Account screen consists of:
- * - A user profile section with avatar and betting records
- * - A "New Bet" button for initiating new bets
- * - A HandshakeSlider component for confirming actions
- *
- * @param onNewBetClicked Callback function triggered when the user initiates a new bet
- * @param modifier Optional modifier for customizing the screen's layout
- */
 @Composable
 fun AccountScreen(
     onNewBetClicked: () -> Unit,
+    onRecordsClicked: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var selectedTab by remember { mutableStateOf(0) }
+
     Surface(
         color = MaterialTheme.colorScheme.background,
         modifier = Modifier.fillMaxSize()
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            // User Profile Section
+        Scaffold(
+            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
+            bottomBar = {
+                BottomNavBar(
+                    selectedIndex = 0,
+                    onHomeSelected = { /* Already on Home screen */ },
+                    onNewBetSelected = onNewBetClicked,
+                    onRecordsSelected = onRecordsClicked
+                )
+            }
+        ) { paddingValues ->
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Top
             ) {
-                // User Avatar
-                Icon(
-                    imageVector = Icons.Filled.Person,
-                    contentDescription = "User image",
-                    modifier = Modifier
-                        .padding(top = 16.dp)
-                        .size(86.dp)
-                        .clip(CircleShape)
-                        .border(2.dp, Color.Black, CircleShape)
-                )
-                // Betting Records
-                Text(
-                    text = sampleRecords.formattedRecords,
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.labelMedium
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                // New Bet Button
-                Button(
-                    onClick = onNewBetClicked,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .padding(horizontal = 24.dp)
-                ) {
-                    Text(text = "New Bet")
+                when (selectedTab) {
+                    0 -> Tab1Content()
                 }
             }
-
-            // Confirmation Slider
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 26.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                HandshakeSlider(
-                    onConfirmed = onNewBetClicked
-                )
-            }
         }
+    }
+}
+
+@Composable
+private fun Tab1Content() {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // User Avatar
+        Icon(
+            imageVector = Icons.Filled.Person,
+            contentDescription = "User image",
+            modifier = Modifier
+                .padding(top = 16.dp)
+                .size(86.dp)
+                .clip(CircleShape)
+                .border(2.dp, Color.Black, CircleShape)
+        )
+        // Betting Records
+        Text(
+            text = sampleRecords.formattedRecords,
+            modifier = Modifier.padding(16.dp),
+            style = MaterialTheme.typography.labelMedium
+        )
+    }
+}
+
+@Composable
+private fun Tab2Content() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Tab 2 Content")
+    }
+}
+
+@Composable
+private fun Tab3Content() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Tab 3 Content")
     }
 }
 

@@ -32,7 +32,59 @@ fun MyApp(
             LandingScreen(navController)
         }
         composable("account") {
-            AccountScreen(onNewBetClicked = {}, modifier = Modifier)
+            AccountScreen(
+                onNewBetClicked = {
+                    navController.navigate("new_bet") {
+                        // Pop up to account screen and save state
+                        popUpTo("account") { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                onRecordsClicked = {
+                    navController.navigate("records") {
+                        // Pop up to account screen and save state
+                        popUpTo("account") { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
+        }
+        composable("new_bet") {
+            NewBetScreen(
+                onConfirmed = { navController.popBackStack() },
+                onHomeClicked = {
+                    navController.navigate("account") {
+                        popUpTo("account") { inclusive = false }
+                        launchSingleTop = true
+                    }
+                },
+                onRecordsClicked = {
+                    navController.navigate("records") {
+                        popUpTo("account") { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
+        }
+        composable("records") {
+            RecordsScreen(
+                onHomeClicked = {
+                    navController.navigate("account") {
+                        popUpTo("account") { inclusive = false }
+                        launchSingleTop = true
+                    }
+                },
+                onNewBetClicked = {
+                    navController.navigate("new_bet") {
+                        popUpTo("account") { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
         }
     }
 }
