@@ -20,6 +20,13 @@ data class User(
     val avatar: Int
 )
 
+data class Bet(
+    val participant: User,
+    val description: String,
+    val prideWagered: Int,
+    val isConfirmed: Boolean = false
+)
+
 val sampleUser = User("John", sampleRecords, R.drawable.footlegs)
 val sampleUser2 = User("Jane", sampleRecords, R.drawable.hornhead)
 val sampleUser3 = User("Jack", sampleRecords, R.drawable.longnose)

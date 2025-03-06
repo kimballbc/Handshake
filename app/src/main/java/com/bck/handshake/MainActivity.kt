@@ -5,10 +5,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.bck.handshake.data.Bet
 import com.bck.handshake.ui.theme.TheSideBetTheme
 
 class MainActivity : ComponentActivity() {
@@ -27,15 +32,17 @@ fun MyApp(
     modifier: Modifier
 ){
     val navController = rememberNavController()
+    var currentBets by remember { mutableStateOf(listOf<Bet>()) }
+
     NavHost(navController = navController, startDestination = "landing") {
         composable("landing") {
             LandingScreen(navController)
         }
         composable("account") {
             AccountScreen(
+                currentBets = currentBets,
                 onNewBetClicked = {
                     navController.navigate("new_bet") {
-                        // Pop up to account screen and save state
                         popUpTo("account") { saveState = true }
                         launchSingleTop = true
                         restoreState = true
@@ -43,7 +50,6 @@ fun MyApp(
                 },
                 onRecordsClicked = {
                     navController.navigate("records") {
-                        // Pop up to account screen and save state
                         popUpTo("account") { saveState = true }
                         launchSingleTop = true
                         restoreState = true
@@ -53,7 +59,12 @@ fun MyApp(
         }
         composable("new_bet") {
             NewBetScreen(
-                onConfirmed = { navController.popBackStack() },
+                onConfirmed = { bet ->
+                    currentBets = currentBets + bet
+                    navController.navigate("account") {
+                        popUpTo("account") { inclusive = true }
+                    }
+                },
                 onHomeClicked = {
                     navController.navigate("account") {
                         popUpTo("account") { inclusive = false }
