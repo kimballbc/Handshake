@@ -76,4 +76,22 @@ object SupabaseHelper {
             null
         }
     }
+
+    fun getCurrentUserDisplayName(): String? {
+        return try {
+            val user = supabase.auth.currentUserOrNull()
+            if (user != null) {
+                // Try to get display name from user metadata
+                val displayName = user.userMetadata?.get("display_name")?.toString()
+                if (!displayName.isNullOrEmpty()) {
+                    return displayName
+                }
+                // If no display name, return email
+                return user.email
+            }
+            null
+        } catch (e: Exception) {
+            null
+        }
+    }
 }
