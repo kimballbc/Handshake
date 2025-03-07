@@ -17,6 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.bck.handshake.auth.LoginScreen
 import com.bck.handshake.data.Bet
+import com.bck.handshake.data.SupabaseHelper
 import com.bck.handshake.ui.theme.TheSideBetTheme
 // import com.bck.handshake.viewmodel.AuthState
 // import com.bck.handshake.viewmodel.AuthViewModel
@@ -71,15 +72,15 @@ fun MyApp(
                 },
                 onSignOut = {
                     // authViewModel.signOut()
-                    navController.navigate("login") {
-                        popUpTo("account") { inclusive = true }
+                    SupabaseHelper.signOut { success, _ ->
+                        if (success) {
+                            navController.navigate("login") {
+                                popUpTo("account") { inclusive = true }
+                            }
+                        }
                     }
                 }
             )
-        }
-        
-        composable("landing") {
-            LandingScreen(navController)
         }
         
         composable("account") {
@@ -101,8 +102,12 @@ fun MyApp(
                 },
                 onSignOut = {
                     // authViewModel.signOut()
-                    navController.navigate("login") {
-                        popUpTo("account") { inclusive = true }
+                    SupabaseHelper.signOut { success, _ ->
+                        if (success) {
+                            navController.navigate("login") {
+                                popUpTo("account") { inclusive = true }
+                            }
+                        }
                     }
                 }
             )

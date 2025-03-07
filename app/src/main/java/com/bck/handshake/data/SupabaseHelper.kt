@@ -6,6 +6,8 @@ import io.github.jan.supabase.gotrue.Auth
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.builtin.Email
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 
 object SupabaseHelper {
     val supabase: SupabaseClient = createSupabaseClient(
@@ -15,12 +17,17 @@ object SupabaseHelper {
         install(Auth)
     }
 
-    fun signUpWithEmail(email: String, password: String, onResult: (Boolean, String?) -> Unit) {
+    fun signUpWithEmail(email: String, password: String, displayName: String, onResult: (Boolean, String?) -> Unit) {
         runBlocking {
             try {
+                val userData = buildJsonObject {
+                    put("display_name", JsonPrimitive(displayName))
+                }
+                
                 supabase.auth.signUpWith(Email) {
                     this.email = email
                     this.password = password
+                    this.data = userData
                 }
                 onResult(true, null)
             } catch (e: Exception) {
@@ -40,6 +47,33 @@ object SupabaseHelper {
             } catch (e: Exception) {
                 onResult(false, e.localizedMessage)
             }
+        }
+    }
+
+    fun isSignedIn(): Boolean {
+        return try {
+            supabase.auth.currentUserOrNull() != null
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun signOut(onResult: (Boolean, String?) -> Unit) {
+        runBlocking {
+            try {
+                supabase.auth.signOut()
+                onResult(true, null)
+            } catch (e: Exception) {
+                onResult(false, e.localizedMessage)
+            }
+        }
+    }
+
+    fun getCurrentUserId(): String? {
+        return try {
+            supabase.auth.currentUserOrNull()?.id
+        } catch (e: Exception) {
+            null
         }
     }
 }
