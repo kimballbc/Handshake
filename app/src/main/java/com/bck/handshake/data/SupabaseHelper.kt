@@ -1,0 +1,45 @@
+package com.bck.handshake.data
+
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.gotrue.Auth
+import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.gotrue.providers.builtin.Email
+import kotlinx.coroutines.runBlocking
+
+object SupabaseHelper {
+    val supabase: SupabaseClient = createSupabaseClient(
+        supabaseUrl = "https://tmowqmkjntyxweemosdx.supabase.co",
+        supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRtb3dxbWtqbnR5eHdlZW1vc2R4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDEyOTc5NzYsImV4cCI6MjA1Njg3Mzk3Nn0.pQlVgxxH80FIhuyFRbtijHdVQNW-cuxueoojJHijhSc"
+    ) {
+        install(Auth)
+    }
+
+    fun signUpWithEmail(email: String, password: String, onResult: (Boolean, String?) -> Unit) {
+        runBlocking {
+            try {
+                supabase.auth.signUpWith(Email) {
+                    this.email = email
+                    this.password = password
+                }
+                onResult(true, null)
+            } catch (e: Exception) {
+                onResult(false, e.localizedMessage)
+            }
+        }
+    }
+
+    fun signInWithEmail(email: String, password: String, onResult: (Boolean, String?) -> Unit) {
+        runBlocking {
+            try {
+                supabase.auth.signInWith(Email) {
+                    this.email = email
+                    this.password = password
+                }
+                onResult(true, null)
+            } catch (e: Exception) {
+                onResult(false, e.localizedMessage)
+            }
+        }
+    }
+}
