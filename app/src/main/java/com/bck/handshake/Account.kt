@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
@@ -34,7 +36,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -108,46 +109,108 @@ fun AccountScreen(
         }
     }
 
-    Surface(
-        color = MaterialTheme.colorScheme.background,
-        modifier = Modifier.fillMaxSize()
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        Scaffold(
-            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
-            bottomBar = {
-                BottomNavBar(
-                    selectedIndex = 0,
-                    onHomeSelected = { /* Already on Home screen */ },
-                    onNewBetSelected = onNewBetClicked,
-                    onRecordsSelected = onRecordsClicked
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 80.dp) // Account for bottom bar
+                .padding(horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                // User Avatar
+                Icon(
+                    imageVector = Icons.Filled.Person,
+                    contentDescription = "User image",
+                    modifier = Modifier
+                        .padding(top = 16.dp)
+                        .size(86.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, Color.Black, CircleShape)
                 )
             }
-        ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(horizontal = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Top
-            ) {
-                when (selectedTab) {
-                    0 -> Tab1Content(
-                        bets = bets,
-                        onSignOut = {
-                            scope.launch {
-                                SupabaseHelper.signOut().fold(
-                                    onSuccess = { onSignOut() },
-                                    onFailure = { error = it.message }
-                                )
-                            }
-                        },
-                        isLoading = isLoading,
-                        error = error,
-                        onBetUpdated = { scope.launch { fetchBets() } }
-                    )
+
+            item {
+                // Sign Out Button
+                Button(
+                    onClick = onSignOut,
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text("Sign Out")
                 }
             }
+
+            item {
+                // Betting Records
+                Text(
+                    text = sampleRecords.formattedRecords,
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
+
+            // Loading State
+            if (isLoading) {
+                item {
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            } else if (error != null) {
+                item {
+                    Text(
+                        text = error!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            } else {
+                // Active Bets Section
+                if (bets.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "Active Bets",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.padding(top = 16.dp)
+                        )
+                    }
+
+                    items(bets) { bet ->
+                        BetCard(
+                            bet = bet,
+                            onBetUpdated = { scope.launch { fetchBets() } }
+                        )
+                    }
+                } else {
+                    item {
+                        Text(
+                            text = "No active bets",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        // Bottom Navigation
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+        ) {
+            BottomNavBar(
+                selectedIndex = 0,
+                onHomeSelected = { /* Already on Home screen */ },
+                onNewBetSelected = onNewBetClicked,
+                onRecordsSelected = onRecordsClicked,
+                modifier = Modifier
+            )
         }
     }
 }

@@ -96,7 +96,8 @@ fun RecordsScreen(
                     selectedIndex = 2,
                     onHomeSelected = onHomeClicked,
                     onNewBetSelected = onNewBetClicked,
-                    onRecordsSelected = { /* Already on Records screen */ }
+                    onRecordsSelected = { /* Already on Records screen */ },
+                    modifier = Modifier
                 )
             }
         ) { paddingValues ->
