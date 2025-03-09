@@ -10,6 +10,7 @@ import com.bck.handshake.data.sampleRecords
 import com.bck.handshake.navigation.BottomNavBar
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import com.bck.handshake.data.SupabaseHelper
 
 @Composable
 fun RecordsScreen(
@@ -17,6 +18,8 @@ fun RecordsScreen(
     onNewBetClicked: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val userName = remember { SupabaseHelper.getCurrentUserDisplayName() ?: "Your Records" }
+
     Surface(
         color = MaterialTheme.colorScheme.background,
         modifier = Modifier.fillMaxSize()
@@ -52,7 +55,7 @@ fun RecordsScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "Your Record",
+                            text = "$userName's Records",
                             style = MaterialTheme.typography.headlineMedium,
                             modifier = Modifier.padding(bottom = 16.dp)
                         )

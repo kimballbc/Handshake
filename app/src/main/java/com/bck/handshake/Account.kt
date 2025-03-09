@@ -37,6 +37,7 @@ fun AccountScreen(
     currentBets: List<Bet>,
     onNewBetClicked: () -> Unit,
     onRecordsClicked: () -> Unit,
+    onSignOut: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableStateOf(0) }
@@ -65,7 +66,7 @@ fun AccountScreen(
                 verticalArrangement = Arrangement.Top
             ) {
                 when (selectedTab) {
-                    0 -> Tab1Content(currentBets)
+                    0 -> Tab1Content(currentBets, onSignOut)
                 }
             }
         }
@@ -73,7 +74,7 @@ fun AccountScreen(
 }
 
 @Composable
-private fun Tab1Content(bets: List<Bet>) {
+private fun Tab1Content(bets: List<Bet>, onSignOut: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -89,6 +90,15 @@ private fun Tab1Content(bets: List<Bet>) {
                 .clip(CircleShape)
                 .border(2.dp, Color.Black, CircleShape)
         )
+        
+        // Sign Out Button
+        Button(
+            onClick = onSignOut,
+            modifier = Modifier.padding(top = 8.dp)
+        ) {
+            Text("Sign Out")
+        }
+        
         // Betting Records
         Text(
             text = sampleRecords.formattedRecords,
