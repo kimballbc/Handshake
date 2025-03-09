@@ -73,15 +73,16 @@ fun RecordsScreen(
         }
 
         // Get completed bets
-        SupabaseHelper.getUserBets { bets, fetchError ->
-            if (fetchError != null) {
-                error = fetchError
-            } else {
+        SupabaseHelper.getUserBets().fold(
+            onSuccess = { bets ->
                 completedBets = bets.filter { it.status == "completed" }
-                    .sortedByDescending { it.createdAt }
+                isLoading = false
+            },
+            onFailure = { e ->
+                isLoading = false
+                error = e.message ?: "Failed to load bets"
             }
-            isLoading = false
-        }
+        )
     }
 
     Surface(

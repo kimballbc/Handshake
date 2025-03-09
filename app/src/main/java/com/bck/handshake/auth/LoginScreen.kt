@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -19,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +40,7 @@ import androidx.navigation.NavController
 import com.bck.handshake.R
 import com.bck.handshake.data.SupabaseHelper
 import com.bck.handshake.ui.theme.indieFlower
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(navController: NavController) {
@@ -48,8 +51,10 @@ fun LoginScreen(navController: NavController) {
     var emailError by remember { mutableStateOf<String?>(null) }
     var displayNameError by remember { mutableStateOf<String?>(null) }
     var isSignUpMode by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val emailFocusRequester = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
 
     fun validateEmail(email: String): String? {
         val trimmedEmail = email.trim()
@@ -190,18 +195,24 @@ fun LoginScreen(navController: NavController) {
                         return@Button
                     }
                     
-                    SupabaseHelper.signInWithEmail(trimmedEmail, password) { success, message ->
-                        if (success) {
-                            navController.navigate("account") {
-                                popUpTo("login") { inclusive = true }
+                    isLoading = true
+                    scope.launch {
+                        SupabaseHelper.signInWithEmail(trimmedEmail, password).fold(
+                            onSuccess = {
+                                isLoading = false
+                                navController.navigate("account") {
+                                    popUpTo("login") { inclusive = true }
+                                }
+                            },
+                            onFailure = {
+                                isLoading = false
+                                errorMessage = "Either the email or password is incorrect."
                             }
-                        } else {
-                            errorMessage = "Either the email or password is incorrect."
-                        }
+                        )
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = emailError == null
+                enabled = emailError == null && !isLoading
             ) {
                 Text("Sign In")
             }
@@ -210,7 +221,8 @@ fun LoginScreen(navController: NavController) {
 
             Button(
                 onClick = { isSignUpMode = true },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isLoading
             ) {
                 Text("Create Account")
             }
@@ -231,19 +243,25 @@ fun LoginScreen(navController: NavController) {
                         return@Button
                     }
                     
-                    SupabaseHelper.signUpWithEmail(trimmedEmail, password, trimmedDisplayName) { success, message ->
-                        if (success) {
-                            errorMessage = "Check your email for verification."
-                            isSignUpMode = false
-                            displayName = ""
-                            displayNameError = null
-                        } else {
-                            errorMessage = "Either the email or password is incorrect."
-                        }
+                    isLoading = true
+                    scope.launch {
+                        SupabaseHelper.signUpWithEmail(trimmedEmail, password, trimmedDisplayName).fold(
+                            onSuccess = {
+                                isLoading = false
+                                errorMessage = "Check your email for verification."
+                                isSignUpMode = false
+                                displayName = ""
+                                displayNameError = null
+                            },
+                            onFailure = {
+                                isLoading = false
+                                errorMessage = "Either the email or password is incorrect."
+                            }
+                        )
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = emailError == null && displayNameError == null
+                enabled = emailError == null && displayNameError == null && !isLoading
             ) {
                 Text("Sign Up")
             }
@@ -256,10 +274,15 @@ fun LoginScreen(navController: NavController) {
                     displayName = ""
                     displayNameError = null
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isLoading
             ) {
                 Text("Back to Sign In")
             }
+        }
+
+        if (isLoading) {
+            CircularProgressIndicator()
         }
 
         errorMessage?.let {

@@ -43,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +57,8 @@ import com.bck.handshake.data.SupabaseHelper
 import com.bck.handshake.data.sampleRecords
 import com.bck.handshake.navigation.BottomNavBar
 import com.bck.handshake.ui.theme.indieFlower
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun AccountScreen(
@@ -65,24 +68,31 @@ fun AccountScreen(
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val scope = rememberCoroutineScope()
     val selectedTab by remember { mutableStateOf(0) }
     var bets by remember { mutableStateOf(currentBets) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
-    var refreshTrigger by remember { mutableStateOf(0) }
-
-    // Function to fetch bets
-    fun fetchBets() {
+    var lastUpdateTime by remember { mutableStateOf(0L) }
+    
+    // Function to fetch bets with debouncing
+    suspend fun fetchBets() {
+        val currentTime = System.currentTimeMillis()
+        // Only update if more than 2 seconds have passed since last update
+        if (currentTime - lastUpdateTime < 2000) return
+        
         isLoading = true
-        SupabaseHelper.getUserBets { fetchedBets, fetchError ->
-            isLoading = false
-            if (fetchError != null) {
-                error = fetchError
-            } else {
-                // Filter out completed bets
+        SupabaseHelper.getUserBets().fold(
+            onSuccess = { fetchedBets ->
                 bets = fetchedBets.filter { it.status != "completed" }
+                error = null
+                lastUpdateTime = currentTime
+            },
+            onFailure = { e ->
+                error = e.message
             }
-        }
+        )
+        isLoading = false
     }
 
     // Initial load
@@ -90,11 +100,12 @@ fun AccountScreen(
         fetchBets()
     }
 
-    // Periodic refresh every 5 seconds
-    LaunchedEffect(refreshTrigger) {
-        kotlinx.coroutines.delay(5000)
-        fetchBets()
-        refreshTrigger++
+    // Periodic refresh every 10 seconds instead of 5
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(10000) // 10 second delay
+            fetchBets()
+        }
     }
 
     Surface(
@@ -123,10 +134,17 @@ fun AccountScreen(
                 when (selectedTab) {
                     0 -> Tab1Content(
                         bets = bets,
-                        onSignOut = onSignOut,
+                        onSignOut = {
+                            scope.launch {
+                                SupabaseHelper.signOut().fold(
+                                    onSuccess = { onSignOut() },
+                                    onFailure = { error = it.message }
+                                )
+                            }
+                        },
                         isLoading = isLoading,
                         error = error,
-                        onBetUpdated = { fetchBets() }
+                        onBetUpdated = { scope.launch { fetchBets() } }
                     )
                 }
             }
@@ -218,31 +236,40 @@ private fun BetCard(
     var showOutcomeDialog by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     // Define handlers at the beginning of the composable
     fun handleAccept() {
         isLoading = true
         errorMessage = null
-        SupabaseHelper.updateBetStatus(bet.id, "accepted") { success, error ->
-            isLoading = false
-            if (success) {
-                onBetUpdated()  // Trigger refresh after successful update
-            } else {
-                errorMessage = error
-            }
+        scope.launch {
+            SupabaseHelper.updateBetStatus(bet.id, "accepted").fold(
+                onSuccess = {
+                    isLoading = false
+                    onBetUpdated()
+                },
+                onFailure = { e ->
+                    isLoading = false
+                    errorMessage = e.message
+                }
+            )
         }
     }
 
     fun handleReject() {
         isLoading = true
         errorMessage = null
-        SupabaseHelper.updateBetStatus(bet.id, "rejected") { success, error ->
-            isLoading = false
-            if (success) {
-                onBetUpdated()  // Trigger refresh after successful update
-            } else {
-                errorMessage = error
-            }
+        scope.launch {
+            SupabaseHelper.updateBetStatus(bet.id, "rejected").fold(
+                onSuccess = {
+                    isLoading = false
+                    onBetUpdated()
+                },
+                onFailure = { e ->
+                    isLoading = false
+                    errorMessage = e.message
+                }
+            )
         }
     }
 
@@ -254,14 +281,18 @@ private fun BetCard(
             "i_won" -> SupabaseHelper.getCurrentUserId()
             else -> null  // Draw case
         }
-        SupabaseHelper.updateBetStatus(bet.id, "completed", winnerId) { success, error ->
-            isLoading = false
-            if (success) {
-                showOutcomeDialog = false
-                onBetUpdated()  // Trigger refresh after successful update
-            } else {
-                errorMessage = error
-            }
+        scope.launch {
+            SupabaseHelper.updateBetStatus(bet.id, "completed", winnerId).fold(
+                onSuccess = {
+                    isLoading = false
+                    showOutcomeDialog = false
+                    onBetUpdated()
+                },
+                onFailure = { e ->
+                    isLoading = false
+                    errorMessage = e.message
+                }
+            )
         }
     }
 

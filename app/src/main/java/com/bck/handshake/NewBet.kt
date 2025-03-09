@@ -1,24 +1,47 @@
 package com.bck.handshake
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.dp
-import com.bck.handshake.navigation.BottomNavBar
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.text.KeyboardActions
-import com.bck.handshake.data.Bet
-import com.bck.handshake.data.User
-import com.bck.handshake.data.SupabaseHelper
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import com.bck.handshake.data.Bet
+import com.bck.handshake.data.SupabaseHelper
+import com.bck.handshake.data.User
+import com.bck.handshake.navigation.BottomNavBar
+import kotlinx.coroutines.launch
 
 /**
  * NewBet screen implementation.
@@ -44,17 +67,20 @@ fun NewBetScreen(
     val focusManager = LocalFocusManager.current
     val descriptionFocusRequester = remember { FocusRequester() }
     val prideFocusRequester = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
 
     // Load available users when the screen is first displayed
     LaunchedEffect(Unit) {
-        SupabaseHelper.getAvailableUsers { users, error ->
-            isLoading = false
-            if (error != null) {
-                errorMessage = error
-            } else {
+        SupabaseHelper.getAvailableUsers().fold(
+            onSuccess = { users ->
+                isLoading = false
                 availableUsers = users
+            },
+            onFailure = { e ->
+                isLoading = false
+                errorMessage = e.message ?: "Failed to load users"
             }
-        }
+        )
     }
 
     Surface(
@@ -197,25 +223,29 @@ fun NewBetScreen(
                             onConfirmed = {
                                 selectedUser?.let { user ->
                                     isCreatingBet = true
-                                    SupabaseHelper.createBet(
-                                        participantId = user.id,
-                                        description = betDescription,
-                                        prideWagered = prideWagered.toInt()
-                                    ) { success, error ->
-                                        isCreatingBet = false
-                                        if (success) {
-                                            val bet = Bet(
-                                                id = "", // The ID will be set by Supabase
-                                                participant = user,
-                                                description = betDescription,
-                                                prideWagered = prideWagered.toInt(),
-                                                status = "pending",
-                                                isCreator = true
-                                            )
-                                            onConfirmed(bet)
-                                        } else {
-                                            errorMessage = error ?: "Failed to create bet"
-                                        }
+                                    scope.launch {
+                                        SupabaseHelper.createBet(
+                                            participantId = user.id,
+                                            description = betDescription,
+                                            prideWagered = prideWagered.toInt()
+                                        ).fold(
+                                            onSuccess = {
+                                                isCreatingBet = false
+                                                val bet = Bet(
+                                                    id = "", // The ID will be set by Supabase
+                                                    participant = user,
+                                                    description = betDescription,
+                                                    prideWagered = prideWagered.toInt(),
+                                                    status = "pending",
+                                                    isCreator = true
+                                                )
+                                                onConfirmed(bet)
+                                            },
+                                            onFailure = { e ->
+                                                isCreatingBet = false
+                                                errorMessage = e.message ?: "Failed to create bet"
+                                            }
+                                        )
                                     }
                                 }
                             }
