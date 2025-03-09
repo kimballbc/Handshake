@@ -1,5 +1,6 @@
 package com.bck.handshake.data
 
+import android.content.Context
 import com.bck.handshake.R
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
@@ -29,7 +30,9 @@ data class UserRecord(
     val wins: Int,
     val draws: Int,
     val losses: Int,
-    val pride_balance: Int = 0
+    val pride_balance: Int = 0,
+    val created_at: String? = null,
+    val updated_at: String? = null
 )
 
 @Serializable
@@ -46,12 +49,23 @@ data class SupabaseBet(
 )
 
 object SupabaseHelper {
-    val supabase: SupabaseClient = createSupabaseClient(
-        supabaseUrl = "https://tmowqmkjntyxweemosdx.supabase.co",
-        supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRtb3dxbWtqbnR5eHdlZW1vc2R4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDEyOTc5NzYsImV4cCI6MjA1Njg3Mzk3Nn0.pQlVgxxH80FIhuyFRbtijHdVQNW-cuxueoojJHijhSc"
-    ) {
-        install(Auth)
-        install(Postgrest)
+    private lateinit var applicationContext: Context
+    
+    fun initialize(context: Context) {
+        applicationContext = context.applicationContext
+    }
+
+    val supabase: SupabaseClient by lazy {
+        createSupabaseClient(
+            supabaseUrl = "https://tmowqmkjntyxweemosdx.supabase.co",
+            supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRtb3dxbWtqbnR5eHdlZW1vc2R4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDEyOTc5NzYsImV4cCI6MjA1Njg3Mzk3Nn0.pQlVgxxH80FIhuyFRbtijHdVQNW-cuxueoojJHijhSc"
+        ) {
+            install(Auth) {
+                autoSaveToStorage = true
+                autoLoadFromStorage = true
+            }
+            install(Postgrest)
+        }
     }
 
     fun signUpWithEmail(email: String, password: String, displayName: String, onResult: (Boolean, String?) -> Unit) {
@@ -164,7 +178,7 @@ object SupabaseHelper {
                         records = Records(
                             wins = (record?.wins ?: 0).toString(),
                             draws = (record?.draws ?: 0).toString(),
-                            loss = (record?.losses ?: 0).toString()
+                            losses = (record?.losses ?: 0).toString()
                         ),
                         avatar = R.drawable.footlegs // Default avatar for now
                     )
@@ -279,7 +293,7 @@ object SupabaseHelper {
                             records = Records(
                                 wins = (otherUserRecord?.wins ?: 0).toString(),
                                 draws = (otherUserRecord?.draws ?: 0).toString(),
-                                loss = (otherUserRecord?.losses ?: 0).toString()
+                                losses = (otherUserRecord?.losses ?: 0).toString()
                             ),
                             avatar = R.drawable.footlegs
                         ),
@@ -288,7 +302,8 @@ object SupabaseHelper {
                         status = bet.status,
                         isCreator = bet.creator_id == currentUserId,
                         winnerId = bet.winner_id,
-                        created_at = bet.created_at
+                        createdAt = bet.created_at,
+                        isConfirmed = bet.status == "accepted" || bet.status == "completed"
                     )
                 }
 
@@ -300,9 +315,11 @@ object SupabaseHelper {
     }
 
     private suspend fun updateUserRecord(userId: String, outcome: String, prideAmount: Int? = null) {
+        println("BCK: Starting updateUserRecord for userId: $userId, outcome: $outcome, prideAmount: $prideAmount")
         try {
-            // Get current record
+            // Get current record or create new one
             val record = try {
+                println("BCK: Fetching existing record for user $userId")
                 supabase.postgrest.from("user_records")
                     .select() {
                         filter {
@@ -310,61 +327,78 @@ object SupabaseHelper {
                         }
                     }
                     .decodeSingle<UserRecord>()
+                    .also { println("BCK: Found existing record: $it") }
             } catch (e: Exception) {
-                // Create new record if it doesn't exist
-                UserRecord(
-                    id = "",
-                    user_id = userId,
-                    wins = 0,
-                    draws = 0,
-                    losses = 0,
-                    pride_balance = 0
-                )
+                println("BCK: No existing record found, creating new one")
+                // If no record exists, insert a new one first
+                val initialRecord = buildJsonObject {
+                    put("user_id", JsonPrimitive(userId))
+                    put("wins", JsonPrimitive(0))
+                    put("draws", JsonPrimitive(0))
+                    put("losses", JsonPrimitive(0))
+                    put("pride_balance", JsonPrimitive(0))
+                }
+                
+                println("BCK: Inserting initial record")
+                val inserted = supabase.postgrest.from("user_records")
+                    .insert(initialRecord)
+                    .decodeSingle<UserRecord>()
+                println("BCK: Initial record created: $inserted")
+                inserted
             }
 
-            // Calculate pride change
+            // Calculate new values based on outcome
+            val newWins = if (outcome == "win") record.wins + 1 else record.wins
+            val newDraws = if (outcome == "draw") record.draws + 1 else record.draws
+            val newLosses = if (outcome == "loss") record.losses + 1 else record.losses
             val prideChange = when (outcome) {
                 "win" -> prideAmount ?: 0
                 "loss" -> -(prideAmount ?: 0)
                 else -> 0 // No pride change for draws
             }
+            val newPrideBalance = record.pride_balance + prideChange
 
-            // Update the appropriate counter
+            println("BCK: Calculated new values - wins: $newWins, draws: $newDraws, losses: $newLosses, prideBalance: $newPrideBalance")
+
+            // Update the record
             val updateObject = buildJsonObject {
-                put("user_id", JsonPrimitive(userId))
-                when (outcome) {
-                    "win" -> put("wins", JsonPrimitive(record.wins + 1))
-                    "draw" -> put("draws", JsonPrimitive(record.draws + 1))
-                    "loss" -> put("losses", JsonPrimitive(record.losses + 1))
-                }
-                put("pride_balance", JsonPrimitive(record.pride_balance + prideChange))
+                put("wins", JsonPrimitive(newWins))
+                put("draws", JsonPrimitive(newDraws))
+                put("losses", JsonPrimitive(newLosses))
+                put("pride_balance", JsonPrimitive(newPrideBalance))
             }
 
-            // Upsert the record
-            supabase.postgrest.from("user_records")
-                .upsert(
+            println("BCK: Sending update request with data: $updateObject")
+
+            // Update the existing record
+            val response = supabase.postgrest.from("user_records")
+                .update(
                     value = updateObject
                 ) {
                     filter {
-                        eq("user_id", userId)
+                        eq("id", record.id)
                     }
                 }
+
+            println("BCK: Update completed successfully")
         } catch (e: Exception) {
-            // Log error but don't fail the bet update
-            println("Failed to update user record: ${e.localizedMessage}")
+            println("BCK: Failed to update user record: ${e.localizedMessage}")
+            e.printStackTrace()
         }
     }
 
     fun updateBetStatus(betId: String, newStatus: String, winnerId: String? = null, onResult: (Boolean, String?) -> Unit) {
         runBlocking {
             try {
+                println("BCK: Starting updateBetStatus - betId: $betId, newStatus: $newStatus, winnerId: $winnerId")
                 val currentUserId = getCurrentUserId()
                 if (currentUserId == null) {
                     onResult(false, "Not signed in")
                     return@runBlocking
                 }
 
-                // Get the bet first to determine the participants
+                // Get the bet first to determine the participants and pride amount
+                println("BCK: Fetching bet details")
                 val bet = supabase.postgrest.from("bets")
                     .select() {
                         filter {
@@ -372,6 +406,7 @@ object SupabaseHelper {
                         }
                     }
                     .decodeSingle<SupabaseBet>()
+                println("BCK: Found bet: $bet")
 
                 // Update the bet status
                 val updateObject = buildJsonObject {
@@ -381,6 +416,7 @@ object SupabaseHelper {
                     }
                 }
 
+                println("BCK: Updating bet status with: $updateObject")
                 supabase.postgrest.from("bets")
                     .update(
                         value = updateObject
@@ -394,15 +430,19 @@ object SupabaseHelper {
                         }
                     }
 
-                // If the bet is completed, update user records
+                // If the bet is completed, update user records with pride changes
                 if (newStatus == "completed") {
+                    println("BCK: Bet completed, updating user records")
                     if (winnerId == null) {
-                        // Draw - both users get a draw
+                        println("BCK: Draw result - updating both users with draws")
+                        // Draw - both users get a draw, no pride changes
                         updateUserRecord(bet.creator_id, "draw")
                         updateUserRecord(bet.participant_id, "draw")
                     } else {
-                        // One user won, one lost
+                        println("BCK: Winner determined - updating winner and loser records")
+                        // One user won, one lost - update pride balances
                         val loserId = if (winnerId == bet.creator_id) bet.participant_id else bet.creator_id
+                        println("BCK: Updating winner ($winnerId) and loser ($loserId) records")
                         updateUserRecord(winnerId, "win", bet.pride_wagered)
                         updateUserRecord(loserId, "loss", bet.pride_wagered)
                     }
@@ -410,6 +450,8 @@ object SupabaseHelper {
 
                 onResult(true, null)
             } catch (e: Exception) {
+                println("BCK: Error in updateBetStatus: ${e.localizedMessage}")
+                e.printStackTrace()
                 onResult(false, e.localizedMessage)
             }
         }

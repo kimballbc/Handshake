@@ -209,7 +209,6 @@ fun NewBetScreen(
                                                 participant = user,
                                                 description = betDescription,
                                                 prideWagered = prideWagered.toInt(),
-                                                isConfirmed = false,
                                                 status = "pending",
                                                 isCreator = true
                                             )

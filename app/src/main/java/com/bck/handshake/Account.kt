@@ -194,7 +194,7 @@ private fun Tab1Content(
                 bets.forEach { bet ->
                     BetCard(
                         bet = bet,
-                        currentUserId = SupabaseHelper.getCurrentUserId()
+                        onBetUpdated = onBetUpdated
                     )
                 }
             } else {
@@ -209,11 +209,61 @@ private fun Tab1Content(
 }
 
 @Composable
-private fun BetCard(bet: Bet, currentUserId: String?) {
+private fun BetCard(
+    bet: Bet,
+    onBetUpdated: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     var isExpanded by remember { mutableStateOf(false) }
     var showOutcomeDialog by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Define handlers at the beginning of the composable
+    fun handleAccept() {
+        isLoading = true
+        errorMessage = null
+        SupabaseHelper.updateBetStatus(bet.id, "accepted") { success, error ->
+            isLoading = false
+            if (success) {
+                onBetUpdated()  // Trigger refresh after successful update
+            } else {
+                errorMessage = error
+            }
+        }
+    }
+
+    fun handleReject() {
+        isLoading = true
+        errorMessage = null
+        SupabaseHelper.updateBetStatus(bet.id, "rejected") { success, error ->
+            isLoading = false
+            if (success) {
+                onBetUpdated()  // Trigger refresh after successful update
+            } else {
+                errorMessage = error
+            }
+        }
+    }
+
+    fun handleComplete(outcome: String) {
+        isLoading = true
+        errorMessage = null
+        val winnerId = when (outcome) {
+            "they_won" -> bet.participant.id
+            "i_won" -> SupabaseHelper.getCurrentUserId()
+            else -> null  // Draw case
+        }
+        SupabaseHelper.updateBetStatus(bet.id, "completed", winnerId) { success, error ->
+            isLoading = false
+            if (success) {
+                showOutcomeDialog = false
+                onBetUpdated()  // Trigger refresh after successful update
+            } else {
+                errorMessage = error
+            }
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -223,7 +273,7 @@ private fun BetCard(bet: Bet, currentUserId: String?) {
         colors = CardDefaults.cardColors(
             containerColor = when {
                 isLoading -> MaterialTheme.colorScheme.surfaceVariant
-                bet.status == "completed" && bet.winnerId == currentUserId -> MaterialTheme.colorScheme.primaryContainer
+                bet.status == "completed" && bet.winnerId == SupabaseHelper.getCurrentUserId() -> MaterialTheme.colorScheme.primaryContainer
                 bet.status == "completed" && bet.winnerId != null -> MaterialTheme.colorScheme.errorContainer
                 bet.status == "accepted" -> MaterialTheme.colorScheme.secondaryContainer
                 bet.status == "rejected" -> MaterialTheme.colorScheme.errorContainer
@@ -317,29 +367,13 @@ private fun BetCard(bet: Bet, currentUserId: String?) {
                                 // Participant actions
                                 if (!bet.isCreator && bet.status == "pending") {
                                     Button(
-                                        onClick = {
-                                            isLoading = true
-                                            SupabaseHelper.updateBetStatus(bet.id, "accepted") { success, error ->
-                                                isLoading = false
-                                                if (!success) {
-                                                    errorMessage = error
-                                                }
-                                            }
-                                        },
+                                        onClick = { handleAccept() },
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Text("Accept")
                                     }
                                     Button(
-                                        onClick = {
-                                            isLoading = true
-                                            SupabaseHelper.updateBetStatus(bet.id, "rejected") { success, error ->
-                                                isLoading = false
-                                                if (!success) {
-                                                    errorMessage = error
-                                                }
-                                            }
-                                        },
+                                        onClick = { handleReject() },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = MaterialTheme.colorScheme.error
@@ -390,22 +424,7 @@ private fun BetCard(bet: Bet, currentUserId: String?) {
     if (showOutcomeDialog) {
         OutcomeDialog(
             onDismiss = { showOutcomeDialog = false },
-            onOutcomeSelected = { outcome ->
-                isLoading = true
-                val (status, winnerId) = when (outcome) {
-                    "they_won" -> "completed" to bet.participant.id
-                    "i_won" -> "completed" to currentUserId
-                    else -> "completed" to null // Draw
-                }
-                SupabaseHelper.updateBetStatus(bet.id, status, winnerId) { success, error ->
-                    isLoading = false
-                    if (success) {
-                        showOutcomeDialog = false
-                    } else {
-                        errorMessage = error
-                    }
-                }
-            }
+            onOutcomeSelected = { outcome -> handleComplete(outcome) }
         )
     }
 }

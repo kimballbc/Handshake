@@ -1,17 +1,20 @@
 package com.bck.handshake.data
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class Records(
     val wins: String,
     val draws: String,
-    val loss: String
+    val losses: String
 ) {
     val formattedRecords: String
-        get() = "$wins-$draws-$loss"
+        get() = "$wins-$draws-$losses"
 }
 
 val sampleRecords = Records("3", "1", "2")
 
-
+@Serializable
 data class User(
     val id: String,
     val name: String,
@@ -19,6 +22,7 @@ data class User(
     val avatar: Int
 )
 
+@Serializable
 data class Bet(
     val id: String,
     val participant: User,
@@ -27,11 +31,8 @@ data class Bet(
     val isConfirmed: Boolean = false,
     val status: String = "pending", // "pending", "accepted", "rejected", "completed"
     val isCreator: Boolean = true,
-    val canAccept: Boolean = false,
-    val canReject: Boolean = false,
-    val canComplete: Boolean = false,
     val winnerId: String? = null,
-    val created_at: String? = null
+    val createdAt: String? = null
 ) {
     val statusDisplay: String
         get() = when (status) {

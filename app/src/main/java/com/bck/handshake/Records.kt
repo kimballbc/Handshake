@@ -78,7 +78,7 @@ fun RecordsScreen(
                 error = fetchError
             } else {
                 completedBets = bets.filter { it.status == "completed" }
-                    .sortedByDescending { it.created_at }
+                    .sortedByDescending { it.createdAt }
             }
             isLoading = false
         }

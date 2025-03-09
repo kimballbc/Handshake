@@ -73,7 +73,8 @@ dependencies {
     implementation("io.github.jan-tennert.supabase:postgrest-kt:2.1.5")
     implementation("io.ktor:ktor-client-android:2.3.8")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
-    
+    implementation(libs.androidx.datastore.core.android)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
