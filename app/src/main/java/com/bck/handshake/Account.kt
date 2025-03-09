@@ -4,33 +4,58 @@
  */
 package com.bck.handshake
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import com.bck.handshake.data.sampleRecords
-import com.bck.handshake.navigation.BottomNavBar
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import com.bck.handshake.data.Bet
-import androidx.compose.ui.res.painterResource
-import com.bck.handshake.ui.theme.indieFlower
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
+import com.bck.handshake.components.LoadingIndicator
+import com.bck.handshake.data.Bet
+import com.bck.handshake.data.SupabaseHelper
+import com.bck.handshake.data.sampleRecords
+import com.bck.handshake.navigation.BottomNavBar
+import com.bck.handshake.ui.theme.indieFlower
 
 @Composable
 fun AccountScreen(
@@ -40,7 +65,37 @@ fun AccountScreen(
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
+    val selectedTab by remember { mutableStateOf(0) }
+    var bets by remember { mutableStateOf(currentBets) }
+    var isLoading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var refreshTrigger by remember { mutableStateOf(0) }
+
+    // Function to fetch bets
+    fun fetchBets() {
+        isLoading = true
+        SupabaseHelper.getUserBets { fetchedBets, fetchError ->
+            isLoading = false
+            if (fetchError != null) {
+                error = fetchError
+            } else {
+                // Filter out completed bets
+                bets = fetchedBets.filter { it.status != "completed" }
+            }
+        }
+    }
+
+    // Initial load
+    LaunchedEffect(Unit) {
+        fetchBets()
+    }
+
+    // Periodic refresh every 5 seconds
+    LaunchedEffect(refreshTrigger) {
+        kotlinx.coroutines.delay(5000)
+        fetchBets()
+        refreshTrigger++
+    }
 
     Surface(
         color = MaterialTheme.colorScheme.background,
@@ -66,7 +121,13 @@ fun AccountScreen(
                 verticalArrangement = Arrangement.Top
             ) {
                 when (selectedTab) {
-                    0 -> Tab1Content(currentBets, onSignOut)
+                    0 -> Tab1Content(
+                        bets = bets,
+                        onSignOut = onSignOut,
+                        isLoading = isLoading,
+                        error = error,
+                        onBetUpdated = { fetchBets() }
+                    )
                 }
             }
         }
@@ -74,7 +135,13 @@ fun AccountScreen(
 }
 
 @Composable
-private fun Tab1Content(bets: List<Bet>, onSignOut: () -> Unit) {
+private fun Tab1Content(
+    bets: List<Bet>,
+    onSignOut: () -> Unit,
+    isLoading: Boolean,
+    error: String?,
+    onBetUpdated: () -> Unit
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -106,105 +173,302 @@ private fun Tab1Content(bets: List<Bet>, onSignOut: () -> Unit) {
             style = MaterialTheme.typography.labelMedium
         )
 
-        // Active Bets Section
-        if (bets.isNotEmpty()) {
+        // Loading State
+        if (isLoading) {
+            CircularProgressIndicator()
+        } else if (error != null) {
             Text(
-                text = "Active Bets",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(top = 16.dp)
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium
             )
-            
-            bets.forEach { bet ->
-                BetCard(bet = bet)
+        } else {
+            // Active Bets Section
+            if (bets.isNotEmpty()) {
+                Text(
+                    text = "Active Bets",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
+                
+                bets.forEach { bet ->
+                    BetCard(
+                        bet = bet,
+                        onBetUpdated = onBetUpdated
+                    )
+                }
+            } else {
+                Text(
+                    text = "No active bets",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
 }
 
 @Composable
-private fun BetCard(bet: Bet) {
+private fun BetCard(
+    bet: Bet,
+    onBetUpdated: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     var isExpanded by remember { mutableStateOf(false) }
+    var showOutcomeDialog by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Define handlers at the beginning of the composable
+    fun handleAccept() {
+        isLoading = true
+        errorMessage = null
+        SupabaseHelper.updateBetStatus(bet.id, "accepted") { success, error ->
+            isLoading = false
+            if (success) {
+                onBetUpdated()  // Trigger refresh after successful update
+            } else {
+                errorMessage = error
+            }
+        }
+    }
+
+    fun handleReject() {
+        isLoading = true
+        errorMessage = null
+        SupabaseHelper.updateBetStatus(bet.id, "rejected") { success, error ->
+            isLoading = false
+            if (success) {
+                onBetUpdated()  // Trigger refresh after successful update
+            } else {
+                errorMessage = error
+            }
+        }
+    }
+
+    fun handleComplete(outcome: String) {
+        isLoading = true
+        errorMessage = null
+        val winnerId = when (outcome) {
+            "they_won" -> bet.participant.id
+            "i_won" -> SupabaseHelper.getCurrentUserId()
+            else -> null  // Draw case
+        }
+        SupabaseHelper.updateBetStatus(bet.id, "completed", winnerId) { success, error ->
+            isLoading = false
+            if (success) {
+                showOutcomeDialog = false
+                onBetUpdated()  // Trigger refresh after successful update
+            } else {
+                errorMessage = error
+            }
+        }
+    }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 4.dp)
             .clickable { isExpanded = !isExpanded },
-        shape = RoundedCornerShape(12.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = when {
+                isLoading -> MaterialTheme.colorScheme.surfaceVariant
+                bet.status == "completed" && bet.winnerId == SupabaseHelper.getCurrentUserId() -> MaterialTheme.colorScheme.primaryContainer
+                bet.status == "completed" && bet.winnerId != null -> MaterialTheme.colorScheme.errorContainer
+                bet.status == "accepted" -> MaterialTheme.colorScheme.secondaryContainer
+                bet.status == "rejected" -> MaterialTheme.colorScheme.errorContainer
+                else -> MaterialTheme.colorScheme.surface
+            }
+        )
     ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
             ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
                 ) {
-                    Text(
-                        text = "vs ${bet.participant.name}",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = indieFlower
-                        )
-                    )
-                    if (bet.isConfirmed) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Text(
-                            text = "Confirmed",
-                            color = MaterialTheme.colorScheme.primary,
+                            text = "vs ${bet.participant.name}",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontFamily = indieFlower
+                            )
+                        )
+                        Text(
+                            text = bet.statusDisplay,
+                            color = when (bet.status) {
+                                "pending" -> MaterialTheme.colorScheme.primary
+                                "accepted" -> MaterialTheme.colorScheme.secondary
+                                "rejected" -> MaterialTheme.colorScheme.error
+                                "completed" -> MaterialTheme.colorScheme.tertiary
+                                else -> MaterialTheme.colorScheme.onSurface
+                            },
                             style = MaterialTheme.typography.labelMedium
                         )
                     }
+                    
+                    Column(
+                        modifier = Modifier.padding(start = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "${bet.prideWagered} Pride",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Image(
+                            painter = painterResource(id = bet.participant.avatar),
+                            contentDescription = "Participant avatar",
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                        )
+                    }
                 }
-                
-                Column(
-                    modifier = Modifier.padding(start = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+
+                AnimatedVisibility(
+                    visible = isExpanded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
                 ) {
-                    Text(
-                        text = "${bet.prideWagered} Pride",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Image(
-                        painter = painterResource(id = bet.participant.avatar),
-                        contentDescription = "Participant avatar",
+                    Column(
                         modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                    )
+                            .fillMaxWidth()
+                            .padding(top = 16.dp)
+                    ) {
+                        Text(
+                            text = "Description",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = bet.description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+
+                        // Action buttons
+                        if (!isLoading) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Participant actions
+                                if (!bet.isCreator && bet.status == "pending") {
+                                    Button(
+                                        onClick = { handleAccept() },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Accept")
+                                    }
+                                    Button(
+                                        onClick = { handleReject() },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.error
+                                        )
+                                    ) {
+                                        Text("Reject")
+                                    }
+                                }
+
+                                // Creator actions
+                                if (bet.isCreator && bet.status == "accepted") {
+                                    Button(
+                                        onClick = { showOutcomeDialog = true },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Declare Outcome")
+                                    }
+                                }
+                            }
+                        }
+
+                        errorMessage?.let {
+                            Text(
+                                text = it,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+                    }
                 }
             }
 
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp)
+            // Loading indicator overlay
+            if (isLoading) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
                 ) {
-                    Text(
-                        text = "Description",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = bet.description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 4.dp)
+                    LoadingIndicator(
+                        modifier = Modifier.padding(16.dp)
                     )
                 }
             }
         }
     }
+
+    if (showOutcomeDialog) {
+        OutcomeDialog(
+            onDismiss = { showOutcomeDialog = false },
+            onOutcomeSelected = { outcome -> handleComplete(outcome) }
+        )
+    }
+}
+
+@Composable
+private fun OutcomeDialog(
+    onDismiss: () -> Unit,
+    onOutcomeSelected: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Declare Outcome") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Who won the bet?")
+                Button(
+                    onClick = { onOutcomeSelected("they_won") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("They Won")
+                }
+                Button(
+                    onClick = { onOutcomeSelected("i_won") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("I Won")
+                }
+                Button(
+                    onClick = { onOutcomeSelected("draw") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Draw")
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable

@@ -38,16 +38,7 @@ fun MyApp(
     modifier: Modifier
 ){
     val navController = rememberNavController()
-    var currentBets by remember { mutableStateOf(listOf<Bet>()) }
-    // val authViewModel: AuthViewModel = viewModel()
-    // val authState by authViewModel.authState.collectAsState()
     
-    // Choose the starting destination based on authentication state
-    // val startDestination = when (authState) {
-    //     is AuthState.SignedIn -> "account"
-    //     else -> "login"
-    // }
-
     NavHost(navController = navController, startDestination = "login") {
         composable("login") {
             LoginScreen(navController)
@@ -55,7 +46,7 @@ fun MyApp(
         
         composable("home") {
             AccountScreen(
-                currentBets = currentBets,
+                currentBets = emptyList(),
                 onNewBetClicked = {
                     navController.navigate("new_bet") {
                         popUpTo("account") { saveState = true }
@@ -71,7 +62,6 @@ fun MyApp(
                     }
                 },
                 onSignOut = {
-                    // authViewModel.signOut()
                     SupabaseHelper.signOut { success, _ ->
                         if (success) {
                             navController.navigate("login") {
@@ -85,7 +75,7 @@ fun MyApp(
         
         composable("account") {
             AccountScreen(
-                currentBets = currentBets,
+                currentBets = emptyList(),
                 onNewBetClicked = {
                     navController.navigate("new_bet") {
                         popUpTo("account") { saveState = true }
@@ -101,7 +91,6 @@ fun MyApp(
                     }
                 },
                 onSignOut = {
-                    // authViewModel.signOut()
                     SupabaseHelper.signOut { success, _ ->
                         if (success) {
                             navController.navigate("login") {
@@ -116,7 +105,6 @@ fun MyApp(
         composable("new_bet") {
             NewBetScreen(
                 onConfirmed = { bet ->
-                    currentBets = currentBets + bet
                     navController.navigate("account") {
                         popUpTo("account") { inclusive = true }
                     }
