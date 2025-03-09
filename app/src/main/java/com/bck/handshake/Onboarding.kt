@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +39,7 @@ import androidx.navigation.NavController
 import com.bck.handshake.components.LoadingOverlay
 import com.bck.handshake.data.SupabaseHelper
 import com.bck.handshake.ui.theme.indieFlower
+import kotlinx.coroutines.launch
 
 @Composable
 fun LandingScreen(navController: NavController) {
@@ -102,14 +104,15 @@ fun LandingScreen(navController: NavController) {
 }
 
 @Composable
-fun Onboarding(
+fun OnboardingScreen(
     onLoginSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -161,13 +164,17 @@ fun Onboarding(
                     onDone = {
                         if (email.isNotEmpty() && password.isNotEmpty()) {
                             isLoading = true
-                            SupabaseHelper.signInWithEmail(email, password) { success, errorMessage ->
-                                isLoading = false
-                                if (success) {
-                                    onLoginSuccess()
-                                } else {
-                                    error = errorMessage
-                                }
+                            scope.launch {
+                                SupabaseHelper.signInWithEmail(email, password).fold(
+                                    onSuccess = {
+                                        isLoading = false
+                                        onLoginSuccess()
+                                    },
+                                    onFailure = { e ->
+                                        isLoading = false
+                                        error = e.message ?: "Failed to sign in"
+                                    }
+                                )
                             }
                         }
                     }
@@ -193,13 +200,17 @@ fun Onboarding(
                 onClick = {
                     if (email.isNotEmpty() && password.isNotEmpty()) {
                         isLoading = true
-                        SupabaseHelper.signInWithEmail(email, password) { success, errorMessage ->
-                            isLoading = false
-                            if (success) {
-                                onLoginSuccess()
-                            } else {
-                                error = errorMessage
-                            }
+                        scope.launch {
+                            SupabaseHelper.signInWithEmail(email, password).fold(
+                                onSuccess = {
+                                    isLoading = false
+                                    onLoginSuccess()
+                                },
+                                onFailure = { e ->
+                                    isLoading = false
+                                    error = e.message ?: "Failed to sign in"
+                                }
+                            )
                         }
                     }
                 },
@@ -216,17 +227,17 @@ fun Onboarding(
                     if (email.isNotEmpty() && password.isNotEmpty()) {
                         isLoading = true
                         val displayName = email.substringBefore("@")
-                        SupabaseHelper.signUpWithEmail(email, password, displayName) { success, errorMessage ->
-                            isLoading = false
-                            if (success) {
-                                Toast.makeText(
-                                    context,
-                                    "Check your email to confirm your account",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            } else {
-                                error = errorMessage
-                            }
+                        scope.launch {
+                            SupabaseHelper.signUpWithEmail(email, password, displayName).fold(
+                                onSuccess = {
+                                    isLoading = false
+                                    error = "Check your email for verification."
+                                },
+                                onFailure = { e ->
+                                    isLoading = false
+                                    error = e.message ?: "Failed to sign up"
+                                }
+                            )
                         }
                     }
                 },

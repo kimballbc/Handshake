@@ -68,36 +68,32 @@ object SupabaseHelper {
         }
     }
 
-    fun signUpWithEmail(email: String, password: String, displayName: String, onResult: (Boolean, String?) -> Unit) {
-        runBlocking {
-            try {
-                val userData = buildJsonObject {
-                    put("display_name", JsonPrimitive(displayName))
-                }
-                
-                supabase.auth.signUpWith(Email) {
-                    this.email = email
-                    this.password = password
-                    this.data = userData
-                }
-                onResult(true, null)
-            } catch (e: Exception) {
-                onResult(false, e.localizedMessage)
+    suspend fun signUpWithEmail(email: String, password: String, displayName: String): Result<Unit> {
+        return try {
+            val userData = buildJsonObject {
+                put("display_name", JsonPrimitive(displayName))
             }
+            
+            supabase.auth.signUpWith(Email) {
+                this.email = email
+                this.password = password
+                this.data = userData
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
-    fun signInWithEmail(email: String, password: String, onResult: (Boolean, String?) -> Unit) {
-        runBlocking {
-            try {
-                supabase.auth.signInWith(Email) {
-                    this.email = email
-                    this.password = password
-                }
-                onResult(true, null)
-            } catch (e: Exception) {
-                onResult(false, e.localizedMessage)
+    suspend fun signInWithEmail(email: String, password: String): Result<Unit> {
+        return try {
+            supabase.auth.signInWith(Email) {
+                this.email = email
+                this.password = password
             }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
@@ -109,14 +105,12 @@ object SupabaseHelper {
         }
     }
 
-    fun signOut(onResult: (Boolean, String?) -> Unit) {
-        runBlocking {
-            try {
-                supabase.auth.signOut()
-                onResult(true, null)
-            } catch (e: Exception) {
-                onResult(false, e.localizedMessage)
-            }
+    suspend fun signOut(): Result<Unit> {
+        return try {
+            supabase.auth.signOut()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
@@ -146,171 +140,163 @@ object SupabaseHelper {
         }
     }
 
-    fun getAvailableUsers(onResult: (List<User>, String?) -> Unit) {
-        runBlocking {
-            try {
-                val currentUserId = getCurrentUserId()
-                if (currentUserId == null) {
-                    onResult(emptyList(), "Not signed in")
-                    return@runBlocking
-                }
+    suspend fun getAvailableUsers(): Result<List<User>> {
+        return try {
+            val currentUserId = getCurrentUserId() ?: return Result.failure(Exception("Not signed in"))
 
-                // Get all users except current user
-                val supabaseUsers: List<SupabaseUser> = supabase.postgrest.from("users")
-                    .select(columns = Columns.list("id", "email", "display_name")) {
-                        filter {
-                            neq("id", currentUserId)
-                        }
+            // Get all users except current user
+            val supabaseUsers: List<SupabaseUser> = supabase.postgrest.from("users")
+                .select(columns = Columns.list("id", "email", "display_name")) {
+                    filter {
+                        neq("id", currentUserId)
                     }
-                    .decodeList()
-
-                // Get all user records
-                val userRecords: Map<String, UserRecord> = supabase.postgrest.from("user_records")
-                    .select()
-                    .decodeList<UserRecord>()
-                    .associateBy { it.user_id }
-
-                val users = supabaseUsers.map { supabaseUser ->
-                    val record = userRecords[supabaseUser.id]
-                    User(
-                        id = supabaseUser.id,
-                        name = supabaseUser.display_name,
-                        records = Records(
-                            wins = (record?.wins ?: 0).toString(),
-                            draws = (record?.draws ?: 0).toString(),
-                            losses = (record?.losses ?: 0).toString()
-                        ),
-                        avatar = R.drawable.footlegs // Default avatar for now
-                    )
                 }
+                .decodeList()
 
-                onResult(users, null)
-            } catch (e: Exception) {
-                onResult(emptyList(), e.localizedMessage)
-            }
-        }
-    }
+            // Get all user records
+            val userRecords: Map<String, UserRecord> = supabase.postgrest.from("user_records")
+                .select()
+                .decodeList<UserRecord>()
+                .associateBy { it.user_id }
 
-    fun createBet(participantId: String, description: String, prideWagered: Int, onResult: (Boolean, String?) -> Unit) {
-        runBlocking {
-            try {
-                val creatorId = getCurrentUserId()
-                if (creatorId == null) {
-                    onResult(false, "Not signed in")
-                    return@runBlocking
-                }
-
-                supabase.postgrest.from("bets").insert(
-                    value = buildJsonObject {
-                        put("creator_id", JsonPrimitive(creatorId))
-                        put("participant_id", JsonPrimitive(participantId))
-                        put("description", JsonPrimitive(description))
-                        put("pride_wagered", JsonPrimitive(prideWagered))
-                        put("status", JsonPrimitive("pending"))
-                    }
+            val users = supabaseUsers.map { supabaseUser ->
+                val record = userRecords[supabaseUser.id]
+                User(
+                    id = supabaseUser.id,
+                    name = supabaseUser.display_name,
+                    records = Records(
+                        wins = (record?.wins ?: 0).toString(),
+                        draws = (record?.draws ?: 0).toString(),
+                        losses = (record?.losses ?: 0).toString()
+                    ),
+                    avatar = R.drawable.footlegs // Default avatar for now
                 )
-
-                onResult(true, null)
-            } catch (e: Exception) {
-                onResult(false, e.localizedMessage)
             }
+
+            Result.success(users)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
-    fun getUserBets(onResult: (List<Bet>, String?) -> Unit) {
-        runBlocking {
-            try {
-                val currentUserId = getCurrentUserId()
-                if (currentUserId == null) {
-                    onResult(emptyList(), "Not signed in")
-                    return@runBlocking
-                }
+    suspend fun createBet(participantId: String, description: String, prideWagered: Int): Result<Unit> {
+        return try {
+            val creatorId = getCurrentUserId() ?: return Result.failure(Exception("Not signed in"))
 
-                // Get all bets where user is either creator or participant
-                val bets: List<SupabaseBet> = supabase.postgrest.from("bets")
-                    .select() {
-                        filter {
-                            or {
-                                eq("creator_id", currentUserId)
-                                eq("participant_id", currentUserId)
-                            }
+            supabase.postgrest.from("bets").insert(
+                value = buildJsonObject {
+                    put("creator_id", JsonPrimitive(creatorId))
+                    put("participant_id", JsonPrimitive(participantId))
+                    put("description", JsonPrimitive(description))
+                    put("pride_wagered", JsonPrimitive(prideWagered))
+                    put("status", JsonPrimitive("pending"))
+                }
+            )
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getUserBets(): Result<List<Bet>> {
+        return try {
+            val currentUserId = getCurrentUserId() ?: return Result.failure(Exception("Not signed in"))
+
+            // Get all bets where user is either creator or participant
+            val bets: List<SupabaseBet> = supabase.postgrest.from("bets")
+                .select() {
+                    filter {
+                        or {
+                            eq("creator_id", currentUserId)
+                            eq("participant_id", currentUserId)
                         }
                     }
-                    .decodeList()
-
-                if (bets.isEmpty()) {
-                    onResult(emptyList(), null)
-                    return@runBlocking
                 }
+                .decodeList()
 
-                // Get all users involved in these bets
-                val userIds = bets.flatMap { listOf(it.creator_id, it.participant_id) }.distinct()
-                val users = mutableMapOf<String, SupabaseUser>()
-                val userRecords = mutableMapOf<String, UserRecord>()
+            if (bets.isEmpty()) {
+                return Result.success(emptyList())
+            }
 
-                // Fetch users one by one to avoid array filter issues
-                for (userId in userIds) {
+            // Get all users involved in these bets
+            val userIds = bets.flatMap { listOf(it.creator_id, it.participant_id) }.distinct()
+            val users = mutableMapOf<String, SupabaseUser>()
+            val userRecords = mutableMapOf<String, UserRecord>()
+
+            // Fetch users one by one to avoid array filter issues
+            for (userId in userIds) {
+                try {
+                    val user = supabase.postgrest.from("users")
+                        .select(columns = Columns.list("id", "email", "display_name")) {
+                            filter {
+                                eq("id", userId)
+                            }
+                        }
+                        .decodeSingle<SupabaseUser>()
+                    users[userId] = user
+
+                    // Also fetch their record
                     try {
-                        val user = supabase.postgrest.from("users")
-                            .select(columns = Columns.list("id", "email", "display_name")) {
+                        val record = supabase.postgrest.from("user_records")
+                            .select() {
                                 filter {
-                                    eq("id", userId)
+                                    eq("user_id", userId)
                                 }
                             }
-                            .decodeSingle<SupabaseUser>()
-                        users[userId] = user
-
-                        // Also fetch their record
-                        try {
-                            val record = supabase.postgrest.from("user_records")
-                                .select() {
-                                    filter {
-                                        eq("user_id", userId)
-                                    }
-                                }
-                                .decodeSingle<UserRecord>()
-                            userRecords[userId] = record
-                        } catch (e: Exception) {
-                            // User might not have a record yet, that's okay
-                        }
+                            .decodeSingle<UserRecord>()
+                        userRecords[userId] = record
                     } catch (e: Exception) {
-                        // Skip users that can't be found
-                        println("Failed to fetch user $userId: ${e.localizedMessage}")
+                        // User might not have a record yet, that's okay
                     }
+                } catch (e: Exception) {
+                    // Skip users that can't be found
+                    println("Failed to fetch user $userId: ${e.localizedMessage}")
                 }
+            }
 
-                // Convert SupabaseBet to Bet
-                val mappedBets = bets.map { bet ->
-                    val otherUserId = if (bet.creator_id == currentUserId) bet.participant_id else bet.creator_id
-                    val otherUser = users[otherUserId]
-                    val otherUserRecord = userRecords[otherUserId]
-
-                    Bet(
-                        id = bet.id,
-                        participant = User(
-                            id = otherUserId,
-                            name = otherUser?.display_name ?: "Unknown User",
+            // Convert SupabaseBet to Bet
+            Result.success(bets.mapNotNull { bet ->
+                val creator = users[bet.creator_id] ?: return@mapNotNull null
+                val participant = users[bet.participant_id] ?: return@mapNotNull null
+                val currentUserId = getCurrentUserId()
+                
+                Bet(
+                    id = bet.id,
+                    participant = if (currentUserId == bet.creator_id) {
+                        User(
+                            id = participant.id,
+                            name = participant.display_name,
                             records = Records(
-                                wins = (otherUserRecord?.wins ?: 0).toString(),
-                                draws = (otherUserRecord?.draws ?: 0).toString(),
-                                losses = (otherUserRecord?.losses ?: 0).toString()
+                                wins = (userRecords[participant.id]?.wins ?: 0).toString(),
+                                draws = (userRecords[participant.id]?.draws ?: 0).toString(),
+                                losses = (userRecords[participant.id]?.losses ?: 0).toString()
                             ),
                             avatar = R.drawable.footlegs
-                        ),
-                        description = bet.description,
-                        prideWagered = bet.pride_wagered,
-                        status = bet.status,
-                        isCreator = bet.creator_id == currentUserId,
-                        winnerId = bet.winner_id,
-                        createdAt = bet.created_at,
-                        isConfirmed = bet.status == "accepted" || bet.status == "completed"
-                    )
-                }
-
-                onResult(mappedBets, null)
-            } catch (e: Exception) {
-                onResult(emptyList(), e.localizedMessage)
-            }
+                        )
+                    } else {
+                        User(
+                            id = creator.id,
+                            name = creator.display_name,
+                            records = Records(
+                                wins = (userRecords[creator.id]?.wins ?: 0).toString(),
+                                draws = (userRecords[creator.id]?.draws ?: 0).toString(),
+                                losses = (userRecords[creator.id]?.losses ?: 0).toString()
+                            ),
+                            avatar = R.drawable.footlegs
+                        )
+                    },
+                    description = bet.description,
+                    prideWagered = bet.pride_wagered,
+                    isConfirmed = bet.status == "accepted" || bet.status == "completed",
+                    status = bet.status,
+                    isCreator = currentUserId == bet.creator_id,
+                    winnerId = bet.winner_id,
+                    createdAt = bet.created_at
+                )
+            })
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
@@ -387,73 +373,67 @@ object SupabaseHelper {
         }
     }
 
-    fun updateBetStatus(betId: String, newStatus: String, winnerId: String? = null, onResult: (Boolean, String?) -> Unit) {
-        runBlocking {
-            try {
-                println("BCK: Starting updateBetStatus - betId: $betId, newStatus: $newStatus, winnerId: $winnerId")
-                val currentUserId = getCurrentUserId()
-                if (currentUserId == null) {
-                    onResult(false, "Not signed in")
-                    return@runBlocking
-                }
+    suspend fun updateBetStatus(betId: String, newStatus: String, winnerId: String? = null): Result<Unit> {
+        return try {
+            println("BCK: Starting updateBetStatus - betId: $betId, newStatus: $newStatus, winnerId: $winnerId")
+            val currentUserId = getCurrentUserId() ?: return Result.failure(Exception("Not signed in"))
 
-                // Get the bet first to determine the participants and pride amount
-                println("BCK: Fetching bet details")
-                val bet = supabase.postgrest.from("bets")
-                    .select() {
-                        filter {
-                            eq("id", betId)
-                        }
-                    }
-                    .decodeSingle<SupabaseBet>()
-                println("BCK: Found bet: $bet")
-
-                // Update the bet status
-                val updateObject = buildJsonObject {
-                    put("status", JsonPrimitive(newStatus))
-                    if (winnerId != null) {
-                        put("winner_id", JsonPrimitive(winnerId))
+            // Get the bet first to determine the participants and pride amount
+            println("BCK: Fetching bet details")
+            val bet = supabase.postgrest.from("bets")
+                .select() {
+                    filter {
+                        eq("id", betId)
                     }
                 }
+                .decodeSingle<SupabaseBet>()
+            println("BCK: Found bet: $bet")
 
-                println("BCK: Updating bet status with: $updateObject")
-                supabase.postgrest.from("bets")
-                    .update(
-                        value = updateObject
-                    ) {
-                        filter {
-                            eq("id", betId)
-                            or {
-                                eq("creator_id", currentUserId)
-                                eq("participant_id", currentUserId)
-                            }
-                        }
-                    }
-
-                // If the bet is completed, update user records with pride changes
-                if (newStatus == "completed") {
-                    println("BCK: Bet completed, updating user records")
-                    if (winnerId == null) {
-                        println("BCK: Draw result - updating both users with draws")
-                        // Draw - both users get a draw, no pride changes
-                        updateUserRecord(bet.creator_id, "draw")
-                        updateUserRecord(bet.participant_id, "draw")
-                    } else {
-                        println("BCK: Winner determined - updating winner and loser records")
-                        // One user won, one lost - update pride balances
-                        val loserId = if (winnerId == bet.creator_id) bet.participant_id else bet.creator_id
-                        println("BCK: Updating winner ($winnerId) and loser ($loserId) records")
-                        updateUserRecord(winnerId, "win", bet.pride_wagered)
-                        updateUserRecord(loserId, "loss", bet.pride_wagered)
-                    }
+            // Update the bet status
+            val updateObject = buildJsonObject {
+                put("status", JsonPrimitive(newStatus))
+                if (winnerId != null) {
+                    put("winner_id", JsonPrimitive(winnerId))
                 }
-
-                onResult(true, null)
-            } catch (e: Exception) {
-                println("BCK: Error in updateBetStatus: ${e.localizedMessage}")
-                e.printStackTrace()
-                onResult(false, e.localizedMessage)
             }
+
+            println("BCK: Updating bet status with: $updateObject")
+            supabase.postgrest.from("bets")
+                .update(
+                    value = updateObject
+                ) {
+                    filter {
+                        eq("id", betId)
+                        or {
+                            eq("creator_id", currentUserId)
+                            eq("participant_id", currentUserId)
+                        }
+                    }
+                }
+
+            // If the bet is completed, update user records with pride changes
+            if (newStatus == "completed") {
+                println("BCK: Bet completed, updating user records")
+                if (winnerId == null) {
+                    println("BCK: Draw result - updating both users with draws")
+                    // Draw - both users get a draw, no pride changes
+                    updateUserRecord(bet.creator_id, "draw")
+                    updateUserRecord(bet.participant_id, "draw")
+                } else {
+                    println("BCK: Winner determined - updating winner and loser records")
+                    // One user won, one lost - update pride balances
+                    val loserId = if (winnerId == bet.creator_id) bet.participant_id else bet.creator_id
+                    println("BCK: Updating winner ($winnerId) and loser ($loserId) records")
+                    updateUserRecord(winnerId, "win", bet.pride_wagered)
+                    updateUserRecord(loserId, "loss", bet.pride_wagered)
+                }
+            }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            println("BCK: Error in updateBetStatus: ${e.localizedMessage}")
+            e.printStackTrace()
+            Result.failure(e)
         }
     }
 }

@@ -9,8 +9,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-// import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+// import androidx.compose.runtime.collectAsState
 // import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -21,6 +22,7 @@ import com.bck.handshake.data.SupabaseHelper
 import com.bck.handshake.ui.theme.TheSideBetTheme
 // import com.bck.handshake.viewmodel.AuthState
 // import com.bck.handshake.viewmodel.AuthViewModel
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,6 +40,7 @@ fun MyApp(
     modifier: Modifier
 ){
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
     
     NavHost(navController = navController, startDestination = "login") {
         composable("login") {
@@ -62,12 +65,15 @@ fun MyApp(
                     }
                 },
                 onSignOut = {
-                    SupabaseHelper.signOut { success, _ ->
-                        if (success) {
-                            navController.navigate("login") {
-                                popUpTo("account") { inclusive = true }
-                            }
-                        }
+                    scope.launch {
+                        SupabaseHelper.signOut().fold(
+                            onSuccess = {
+                                navController.navigate("login") {
+                                    popUpTo("account") { inclusive = true }
+                                }
+                            },
+                            onFailure = { /* Handle error if needed */ }
+                        )
                     }
                 }
             )
@@ -91,12 +97,15 @@ fun MyApp(
                     }
                 },
                 onSignOut = {
-                    SupabaseHelper.signOut { success, _ ->
-                        if (success) {
-                            navController.navigate("login") {
-                                popUpTo("account") { inclusive = true }
-                            }
-                        }
+                    scope.launch {
+                        SupabaseHelper.signOut().fold(
+                            onSuccess = {
+                                navController.navigate("login") {
+                                    popUpTo("account") { inclusive = true }
+                                }
+                            },
+                            onFailure = { /* Handle error if needed */ }
+                        )
                     }
                 }
             )

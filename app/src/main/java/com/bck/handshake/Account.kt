@@ -23,18 +23,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,6 +47,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,7 +61,9 @@ import com.bck.handshake.data.SupabaseHelper
 import com.bck.handshake.data.sampleRecords
 import com.bck.handshake.navigation.BottomNavBar
 import com.bck.handshake.ui.theme.indieFlower
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountScreen(
     currentBets: List<Bet>,
@@ -65,71 +72,151 @@ fun AccountScreen(
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val selectedTab by remember { mutableStateOf(0) }
+    val scope = rememberCoroutineScope()
     var bets by remember { mutableStateOf(currentBets) }
-    var isLoading by remember { mutableStateOf(true) }
+    var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var refreshTrigger by remember { mutableStateOf(0) }
-
+    
     // Function to fetch bets
-    fun fetchBets() {
+    suspend fun fetchBets() {
         isLoading = true
-        SupabaseHelper.getUserBets { fetchedBets, fetchError ->
-            isLoading = false
-            if (fetchError != null) {
-                error = fetchError
-            } else {
-                // Filter out completed bets
-                bets = fetchedBets.filter { it.status != "completed" }
+        SupabaseHelper.getUserBets().fold(
+            onSuccess = { fetchedBets ->
+                bets = fetchedBets.filter { it.status != "completed" && it.status != "rejected" }
+                error = null
+            },
+            onFailure = { e ->
+                error = e.message
             }
-        }
+        )
+        isLoading = false
     }
 
-    // Initial load
+    // Initial load and when returning to screen
     LaunchedEffect(Unit) {
         fetchBets()
     }
 
-    // Periodic refresh every 5 seconds
-    LaunchedEffect(refreshTrigger) {
-        kotlinx.coroutines.delay(5000)
-        fetchBets()
-        refreshTrigger++
-    }
-
-    Surface(
-        color = MaterialTheme.colorScheme.background,
-        modifier = Modifier.fillMaxSize()
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        Scaffold(
-            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
-            bottomBar = {
-                BottomNavBar(
-                    selectedIndex = 0,
-                    onHomeSelected = { /* Already on Home screen */ },
-                    onNewBetSelected = onNewBetClicked,
-                    onRecordsSelected = onRecordsClicked
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 80.dp) // Account for bottom bar
+                .padding(horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                // Top row with Avatar and Refresh button
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Person,
+                        contentDescription = "User image",
+                        modifier = Modifier
+                            .size(86.dp)
+                            .clip(CircleShape)
+                            .border(2.dp, Color.Black, CircleShape)
+                    )
+                    
+                    IconButton(
+                        onClick = { scope.launch { fetchBets() } },
+                        enabled = !isLoading
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh bets"
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
+                // Sign Out Button
+                Button(
+                    onClick = onSignOut,
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text("Sign Out")
+                }
+            }
+
+            item {
+                // Betting Records
+                Text(
+                    text = sampleRecords.formattedRecords,
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.labelMedium
                 )
             }
-        ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(horizontal = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Top
-            ) {
-                when (selectedTab) {
-                    0 -> Tab1Content(
-                        bets = bets,
-                        onSignOut = onSignOut,
-                        isLoading = isLoading,
-                        error = error,
-                        onBetUpdated = { fetchBets() }
+
+            // Error State
+            if (error != null) {
+                item {
+                    Text(
+                        text = error!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
+
+            // Active Bets Section
+            if (bets.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Active Bets",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(top = 16.dp)
+                    )
+                }
+
+                items(bets) { bet ->
+                    BetCard(
+                        bet = bet,
+                        onBetUpdated = { scope.launch { fetchBets() } }
+                    )
+                }
+            } else if (!isLoading) {
+                item {
+                    Text(
+                        text = "No active bets",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // Bottom Navigation
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+        ) {
+            BottomNavBar(
+                selectedIndex = 0,
+                onHomeSelected = { /* Already on Home screen */ },
+                onNewBetSelected = onNewBetClicked,
+                onRecordsSelected = onRecordsClicked,
+                modifier = Modifier
+            )
         }
     }
 }
@@ -218,55 +305,68 @@ private fun BetCard(
     var showOutcomeDialog by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     // Define handlers at the beginning of the composable
     fun handleAccept() {
-        isLoading = true
-        errorMessage = null
-        SupabaseHelper.updateBetStatus(bet.id, "accepted") { success, error ->
-            isLoading = false
-            if (success) {
-                onBetUpdated()  // Trigger refresh after successful update
-            } else {
-                errorMessage = error
-            }
+        scope.launch {
+            isLoading = true
+            errorMessage = null
+            SupabaseHelper.updateBetStatus(bet.id, "accepted").fold(
+                onSuccess = {
+                    isLoading = false
+                    onBetUpdated()
+                },
+                onFailure = { e ->
+                    isLoading = false
+                    errorMessage = e.message
+                }
+            )
         }
     }
 
     fun handleReject() {
-        isLoading = true
-        errorMessage = null
-        SupabaseHelper.updateBetStatus(bet.id, "rejected") { success, error ->
-            isLoading = false
-            if (success) {
-                onBetUpdated()  // Trigger refresh after successful update
-            } else {
-                errorMessage = error
-            }
+        scope.launch {
+            isLoading = true
+            errorMessage = null
+            SupabaseHelper.updateBetStatus(bet.id, "rejected").fold(
+                onSuccess = {
+                    isLoading = false
+                    onBetUpdated()
+                },
+                onFailure = { e ->
+                    isLoading = false
+                    errorMessage = e.message
+                }
+            )
         }
     }
 
     fun handleComplete(outcome: String) {
-        isLoading = true
-        errorMessage = null
-        val winnerId = when (outcome) {
-            "they_won" -> bet.participant.id
-            "i_won" -> SupabaseHelper.getCurrentUserId()
-            else -> null  // Draw case
-        }
-        SupabaseHelper.updateBetStatus(bet.id, "completed", winnerId) { success, error ->
-            isLoading = false
-            if (success) {
-                showOutcomeDialog = false
-                onBetUpdated()  // Trigger refresh after successful update
-            } else {
-                errorMessage = error
+        scope.launch {
+            isLoading = true
+            errorMessage = null
+            val winnerId = when (outcome) {
+                "they_won" -> bet.participant.id
+                "i_won" -> SupabaseHelper.getCurrentUserId()
+                else -> null  // Draw case
             }
+            SupabaseHelper.updateBetStatus(bet.id, "completed", winnerId).fold(
+                onSuccess = {
+                    isLoading = false
+                    showOutcomeDialog = false
+                    onBetUpdated()
+                },
+                onFailure = { e ->
+                    isLoading = false
+                    errorMessage = e.message
+                }
+            )
         }
     }
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clickable { isExpanded = !isExpanded },
