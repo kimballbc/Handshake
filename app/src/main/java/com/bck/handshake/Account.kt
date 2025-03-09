@@ -67,16 +67,32 @@ fun AccountScreen(
     var bets by remember { mutableStateOf(currentBets) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var refreshTrigger by remember { mutableStateOf(0) }
 
-    LaunchedEffect(Unit) {
+    // Function to fetch bets
+    fun fetchBets() {
+        isLoading = true
         SupabaseHelper.getUserBets { fetchedBets, fetchError ->
             isLoading = false
             if (fetchError != null) {
                 error = fetchError
             } else {
-                bets = fetchedBets
+                // Filter out completed bets
+                bets = fetchedBets.filter { it.status != "completed" }
             }
         }
+    }
+
+    // Initial load
+    LaunchedEffect(Unit) {
+        fetchBets()
+    }
+
+    // Periodic refresh every 5 seconds
+    LaunchedEffect(refreshTrigger) {
+        kotlinx.coroutines.delay(5000)
+        fetchBets()
+        refreshTrigger++
     }
 
     Surface(
@@ -103,7 +119,13 @@ fun AccountScreen(
                 verticalArrangement = Arrangement.Top
             ) {
                 when (selectedTab) {
-                    0 -> Tab1Content(bets, onSignOut, isLoading, error)
+                    0 -> Tab1Content(
+                        bets = bets,
+                        onSignOut = onSignOut,
+                        isLoading = isLoading,
+                        error = error,
+                        onBetUpdated = { fetchBets() }
+                    )
                 }
             }
         }
@@ -111,13 +133,13 @@ fun AccountScreen(
 }
 
 @Composable
-private fun Tab1Content(bets: List<Bet>, onSignOut: () -> Unit, isLoading: Boolean, error: String?) {
-    var refreshTrigger by remember { mutableStateOf(0) }
-    
-    LaunchedEffect(refreshTrigger) {
-        // This will trigger a refresh of the bets list
-    }
-
+private fun Tab1Content(
+    bets: List<Bet>,
+    onSignOut: () -> Unit,
+    isLoading: Boolean,
+    error: String?,
+    onBetUpdated: () -> Unit
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -170,7 +192,7 @@ private fun Tab1Content(bets: List<Bet>, onSignOut: () -> Unit, isLoading: Boole
                 bets.forEach { bet ->
                     BetCard(
                         bet = bet,
-                        onBetUpdated = { refreshTrigger++ }
+                        onBetUpdated = onBetUpdated
                     )
                 }
             } else {
