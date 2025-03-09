@@ -39,7 +39,9 @@ data class SupabaseBet(
     val description: String,
     val pride_wagered: Int,
     val status: String,
-    val winner_id: String? = null
+    val winner_id: String? = null,
+    val created_at: String? = null,
+    val updated_at: String? = null
 )
 
 object SupabaseHelper {
@@ -221,36 +223,58 @@ object SupabaseHelper {
                     }
                     .decodeList()
 
+                if (bets.isEmpty()) {
+                    onResult(emptyList(), null)
+                    return@runBlocking
+                }
+
                 // Get all users involved in these bets
                 val userIds = bets.flatMap { listOf(it.creator_id, it.participant_id) }.distinct()
-                val users: Map<String, SupabaseUser> = supabase.postgrest.from("users")
-                    .select(columns = Columns.list("id", "email", "display_name")) {
-                        filter {
-                            eq("id", userIds.toTypedArray())
-                        }
-                    }
-                    .decodeList<SupabaseUser>()
-                    .associateBy { it.id }
+                val users = mutableMapOf<String, SupabaseUser>()
+                val userRecords = mutableMapOf<String, UserRecord>()
 
-                // Get records for all users
-                val userRecords: Map<String, UserRecord> = supabase.postgrest.from("user_records")
-                    .select() {
-                        filter {
-                            eq("user_id", userIds.toTypedArray())
+                // Fetch users one by one to avoid array filter issues
+                for (userId in userIds) {
+                    try {
+                        val user = supabase.postgrest.from("users")
+                            .select(columns = Columns.list("id", "email", "display_name")) {
+                                filter {
+                                    eq("id", userId)
+                                }
+                            }
+                            .decodeSingle<SupabaseUser>()
+                        users[userId] = user
+
+                        // Also fetch their record
+                        try {
+                            val record = supabase.postgrest.from("user_records")
+                                .select() {
+                                    filter {
+                                        eq("user_id", userId)
+                                    }
+                                }
+                                .decodeSingle<UserRecord>()
+                            userRecords[userId] = record
+                        } catch (e: Exception) {
+                            // User might not have a record yet, that's okay
                         }
+                    } catch (e: Exception) {
+                        // Skip users that can't be found
+                        println("Failed to fetch user $userId: ${e.localizedMessage}")
                     }
-                    .decodeList<UserRecord>()
-                    .associateBy { it.user_id }
+                }
 
                 val mappedBets = bets.map { bet ->
-                    val participant = users[if (bet.creator_id == currentUserId) bet.participant_id else bet.creator_id]
-                    val record = userRecords[participant?.id]
+                    val isCreator = bet.creator_id == currentUserId
+                    val otherUserId = if (isCreator) bet.participant_id else bet.creator_id
+                    val otherUser = users[otherUserId]
+                    val record = userRecords[otherUserId]
                     
                     Bet(
                         id = bet.id,
                         participant = User(
-                            id = participant?.id ?: "",
-                            name = participant?.display_name ?: "Unknown User",
+                            id = otherUserId,
+                            name = otherUser?.display_name ?: "Unknown User",
                             records = Records(
                                 wins = (record?.wins ?: 0).toString(),
                                 draws = (record?.draws ?: 0).toString(),
@@ -262,7 +286,8 @@ object SupabaseHelper {
                         prideWagered = bet.pride_wagered,
                         isConfirmed = bet.status == "accepted",
                         status = bet.status,
-                        isCreator = bet.creator_id == currentUserId
+                        isCreator = isCreator,
+                        winnerId = bet.winner_id
                     )
                 }
 
@@ -282,6 +307,16 @@ object SupabaseHelper {
                     return@runBlocking
                 }
 
+                // Get the bet first to determine the participants
+                val bet = supabase.postgrest.from("bets")
+                    .select() {
+                        filter {
+                            eq("id", betId)
+                        }
+                    }
+                    .decodeSingle<SupabaseBet>()
+
+                // Update the bet status
                 val updateObject = buildJsonObject {
                     put("status", JsonPrimitive(newStatus))
                     if (winnerId != null) {
@@ -302,10 +337,71 @@ object SupabaseHelper {
                         }
                     }
 
+                // If the bet is completed, update user records
+                if (newStatus == "completed") {
+                    if (winnerId == null) {
+                        // Draw - both users get a draw
+                        updateUserRecord(bet.creator_id, "draw")
+                        updateUserRecord(bet.participant_id, "draw")
+                    } else {
+                        // One user won, one lost
+                        val loserId = if (winnerId == bet.creator_id) bet.participant_id else bet.creator_id
+                        updateUserRecord(winnerId, "win")
+                        updateUserRecord(loserId, "loss")
+                    }
+                }
+
                 onResult(true, null)
             } catch (e: Exception) {
                 onResult(false, e.localizedMessage)
             }
+        }
+    }
+
+    private suspend fun updateUserRecord(userId: String, outcome: String) {
+        try {
+            // Get current record
+            val record = try {
+                supabase.postgrest.from("user_records")
+                    .select() {
+                        filter {
+                            eq("user_id", userId)
+                        }
+                    }
+                    .decodeSingle<UserRecord>()
+            } catch (e: Exception) {
+                // Create new record if it doesn't exist
+                UserRecord(
+                    id = "",
+                    user_id = userId,
+                    wins = 0,
+                    draws = 0,
+                    losses = 0
+                )
+            }
+
+            // Update the appropriate counter
+            val updateObject = buildJsonObject {
+                put("user_id", JsonPrimitive(userId))
+                when (outcome) {
+                    "win" -> put("wins", JsonPrimitive(record.wins + 1))
+                    "draw" -> put("draws", JsonPrimitive(record.draws + 1))
+                    "loss" -> put("losses", JsonPrimitive(record.losses + 1))
+                }
+            }
+
+            // Upsert the record
+            supabase.postgrest.from("user_records")
+                .upsert(
+                    value = updateObject
+                ) {
+                    filter {
+                        eq("user_id", userId)
+                    }
+                }
+        } catch (e: Exception) {
+            // Log error but don't fail the bet update
+            println("Failed to update user record: ${e.localizedMessage}")
         }
     }
 }
