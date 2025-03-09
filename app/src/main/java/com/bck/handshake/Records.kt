@@ -15,7 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -30,8 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.bck.handshake.components.LoadingIndicator
 import com.bck.handshake.data.Bet
-import com.bck.handshake.data.Records
 import com.bck.handshake.data.SupabaseHelper
 import com.bck.handshake.data.UserRecord
 import com.bck.handshake.navigation.BottomNavBar
@@ -45,16 +45,17 @@ fun RecordsScreen(
     modifier: Modifier = Modifier
 ) {
     var completedBets by remember { mutableStateOf<List<Bet>>(emptyList()) }
-    var userRecords by remember { mutableStateOf<Records?>(null) }
+    var userStats by remember { mutableStateOf<UserRecord?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    val currentUserId = remember { SupabaseHelper.getCurrentUserId() }
 
     LaunchedEffect(Unit) {
         // Get user records
         val userId = SupabaseHelper.getCurrentUserId()
         if (userId != null) {
             try {
-                val record = try {
+                userStats = try {
                     SupabaseHelper.supabase.postgrest.from("user_records")
                         .select() {
                             filter {
@@ -63,15 +64,9 @@ fun RecordsScreen(
                         }
                         .decodeSingle<UserRecord>()
                 } catch (e: Exception) {
-                    // User might not have any records yet
-                    null
+                    // User might not have a record yet, create a default one
+                    UserRecord("", userId, 0, 0, 0, 0)
                 }
-
-                userRecords = Records(
-                    wins = (record?.wins ?: 0).toString(),
-                    draws = (record?.draws ?: 0).toString(),
-                    loss = (record?.losses ?: 0).toString()
-                )
             } catch (e: Exception) {
                 error = e.localizedMessage
             }
@@ -83,6 +78,7 @@ fun RecordsScreen(
                 error = fetchError
             } else {
                 completedBets = bets.filter { it.status == "completed" }
+                    .sortedByDescending { it.created_at }
             }
             isLoading = false
         }
@@ -117,7 +113,8 @@ fun RecordsScreen(
                 )
 
                 if (isLoading) {
-                    CircularProgressIndicator(
+                    LoadingIndicator(
+                        message = "Loading your records...",
                         modifier = Modifier.padding(top = 32.dp)
                     )
                 } else if (error != null) {
@@ -128,65 +125,115 @@ fun RecordsScreen(
                         modifier = Modifier.padding(top = 32.dp)
                     )
                 } else {
-                    // Records Summary
+                    // Pride Wallet Card
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Pride Wallet",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                text = "${userStats?.pride_balance ?: 0} Pride",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = if ((userStats?.pride_balance ?: 0) >= 0) 
+                                    MaterialTheme.colorScheme.primary 
+                                else 
+                                    MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+                    }
+
+                    // Stats Card
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 8.dp)
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "Wins",
-                                    style = MaterialTheme.typography.labelMedium
-                                )
-                                Text(
-                                    text = userRecords?.wins ?: "0",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "Wins",
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                    Text(
+                                        text = (userStats?.wins ?: 0).toString(),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "Draws",
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                    Text(
+                                        text = (userStats?.draws ?: 0).toString(),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "Losses",
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                    Text(
+                                        text = (userStats?.losses ?: 0).toString(),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "Draws",
-                                    style = MaterialTheme.typography.labelMedium
-                                )
-                                Text(
-                                    text = userRecords?.draws ?: "0",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                            }
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "Losses",
-                                    style = MaterialTheme.typography.labelMedium
-                                )
-                                Text(
-                                    text = userRecords?.loss ?: "0",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
+
+                            // Win Rate
+                            val totalGames = (userStats?.wins ?: 0) + 
+                                (userStats?.draws ?: 0) + 
+                                (userStats?.losses ?: 0)
+                            val winRate = if (totalGames > 0) {
+                                (userStats?.wins ?: 0) * 100f / totalGames
+                            } else 0f
+
+                            Text(
+                                text = "Win Rate: ${String.format("%.1f", winRate)}%",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(top = 16.dp)
+                            )
                         }
                     }
 
-                    // Completed Bets
+                    // Completed Bets Section
                     if (completedBets.isNotEmpty()) {
                         Text(
-                            text = "Completed Bets",
+                            text = "Bet History",
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
                         )
@@ -196,7 +243,7 @@ fun RecordsScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(completedBets) { bet ->
-                                CompletedBetCard(bet = bet)
+                                CompletedBetCard(bet = bet, currentUserId = currentUserId)
                             }
                         }
                     } else {
@@ -214,11 +261,20 @@ fun RecordsScreen(
 }
 
 @Composable
-private fun CompletedBetCard(bet: Bet) {
+private fun CompletedBetCard(bet: Bet, currentUserId: String?) {
+    val isWinner = bet.winnerId == currentUserId
+    val isDraw = bet.winnerId == null
+    val backgroundColor = when {
+        isDraw -> MaterialTheme.colorScheme.surfaceVariant
+        isWinner -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.errorContainer
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor)
     ) {
         Row(
             modifier = Modifier
@@ -242,6 +298,20 @@ private fun CompletedBetCard(bet: Bet) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
                 )
+                Text(
+                    text = when {
+                        isDraw -> "Draw"
+                        isWinner -> "You Won!"
+                        else -> "You Lost"
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = when {
+                        isDraw -> MaterialTheme.colorScheme.secondary
+                        isWinner -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.error
+                    },
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
 
             Row(
@@ -252,12 +322,14 @@ private fun CompletedBetCard(bet: Bet) {
                     text = "${bet.prideWagered} Pride",
                     style = MaterialTheme.typography.labelMedium
                 )
-                Icon(
-                    imageVector = Icons.Default.EmojiEvents,
-                    contentDescription = "Winner",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
+                if (!isDraw) {
+                    Icon(
+                        imageVector = Icons.Default.EmojiEvents,
+                        contentDescription = if (isWinner) "You Won" else "They Won",
+                        tint = if (isWinner) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }
     }

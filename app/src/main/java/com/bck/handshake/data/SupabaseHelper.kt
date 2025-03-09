@@ -28,7 +28,8 @@ data class UserRecord(
     val user_id: String,
     val wins: Int,
     val draws: Int,
-    val losses: Int
+    val losses: Int,
+    val pride_balance: Int = 0
 )
 
 @Serializable
@@ -264,30 +265,30 @@ object SupabaseHelper {
                     }
                 }
 
+                // Convert SupabaseBet to Bet
                 val mappedBets = bets.map { bet ->
-                    val isCreator = bet.creator_id == currentUserId
-                    val otherUserId = if (isCreator) bet.participant_id else bet.creator_id
+                    val otherUserId = if (bet.creator_id == currentUserId) bet.participant_id else bet.creator_id
                     val otherUser = users[otherUserId]
-                    val record = userRecords[otherUserId]
-                    
+                    val otherUserRecord = userRecords[otherUserId]
+
                     Bet(
                         id = bet.id,
                         participant = User(
                             id = otherUserId,
                             name = otherUser?.display_name ?: "Unknown User",
                             records = Records(
-                                wins = (record?.wins ?: 0).toString(),
-                                draws = (record?.draws ?: 0).toString(),
-                                loss = (record?.losses ?: 0).toString()
+                                wins = (otherUserRecord?.wins ?: 0).toString(),
+                                draws = (otherUserRecord?.draws ?: 0).toString(),
+                                loss = (otherUserRecord?.losses ?: 0).toString()
                             ),
                             avatar = R.drawable.footlegs
                         ),
                         description = bet.description,
                         prideWagered = bet.pride_wagered,
-                        isConfirmed = bet.status == "accepted",
                         status = bet.status,
-                        isCreator = isCreator,
-                        winnerId = bet.winner_id
+                        isCreator = bet.creator_id == currentUserId,
+                        winnerId = bet.winner_id,
+                        created_at = bet.created_at
                     )
                 }
 
@@ -295,6 +296,62 @@ object SupabaseHelper {
             } catch (e: Exception) {
                 onResult(emptyList(), e.localizedMessage)
             }
+        }
+    }
+
+    private suspend fun updateUserRecord(userId: String, outcome: String, prideAmount: Int? = null) {
+        try {
+            // Get current record
+            val record = try {
+                supabase.postgrest.from("user_records")
+                    .select() {
+                        filter {
+                            eq("user_id", userId)
+                        }
+                    }
+                    .decodeSingle<UserRecord>()
+            } catch (e: Exception) {
+                // Create new record if it doesn't exist
+                UserRecord(
+                    id = "",
+                    user_id = userId,
+                    wins = 0,
+                    draws = 0,
+                    losses = 0,
+                    pride_balance = 0
+                )
+            }
+
+            // Calculate pride change
+            val prideChange = when (outcome) {
+                "win" -> prideAmount ?: 0
+                "loss" -> -(prideAmount ?: 0)
+                else -> 0 // No pride change for draws
+            }
+
+            // Update the appropriate counter
+            val updateObject = buildJsonObject {
+                put("user_id", JsonPrimitive(userId))
+                when (outcome) {
+                    "win" -> put("wins", JsonPrimitive(record.wins + 1))
+                    "draw" -> put("draws", JsonPrimitive(record.draws + 1))
+                    "loss" -> put("losses", JsonPrimitive(record.losses + 1))
+                }
+                put("pride_balance", JsonPrimitive(record.pride_balance + prideChange))
+            }
+
+            // Upsert the record
+            supabase.postgrest.from("user_records")
+                .upsert(
+                    value = updateObject
+                ) {
+                    filter {
+                        eq("user_id", userId)
+                    }
+                }
+        } catch (e: Exception) {
+            // Log error but don't fail the bet update
+            println("Failed to update user record: ${e.localizedMessage}")
         }
     }
 
@@ -346,8 +403,8 @@ object SupabaseHelper {
                     } else {
                         // One user won, one lost
                         val loserId = if (winnerId == bet.creator_id) bet.participant_id else bet.creator_id
-                        updateUserRecord(winnerId, "win")
-                        updateUserRecord(loserId, "loss")
+                        updateUserRecord(winnerId, "win", bet.pride_wagered)
+                        updateUserRecord(loserId, "loss", bet.pride_wagered)
                     }
                 }
 
@@ -355,53 +412,6 @@ object SupabaseHelper {
             } catch (e: Exception) {
                 onResult(false, e.localizedMessage)
             }
-        }
-    }
-
-    private suspend fun updateUserRecord(userId: String, outcome: String) {
-        try {
-            // Get current record
-            val record = try {
-                supabase.postgrest.from("user_records")
-                    .select() {
-                        filter {
-                            eq("user_id", userId)
-                        }
-                    }
-                    .decodeSingle<UserRecord>()
-            } catch (e: Exception) {
-                // Create new record if it doesn't exist
-                UserRecord(
-                    id = "",
-                    user_id = userId,
-                    wins = 0,
-                    draws = 0,
-                    losses = 0
-                )
-            }
-
-            // Update the appropriate counter
-            val updateObject = buildJsonObject {
-                put("user_id", JsonPrimitive(userId))
-                when (outcome) {
-                    "win" -> put("wins", JsonPrimitive(record.wins + 1))
-                    "draw" -> put("draws", JsonPrimitive(record.draws + 1))
-                    "loss" -> put("losses", JsonPrimitive(record.losses + 1))
-                }
-            }
-
-            // Upsert the record
-            supabase.postgrest.from("user_records")
-                .upsert(
-                    value = updateObject
-                ) {
-                    filter {
-                        eq("user_id", userId)
-                    }
-                }
-        } catch (e: Exception) {
-            // Log error but don't fail the bet update
-            println("Failed to update user record: ${e.localizedMessage}")
         }
     }
 }

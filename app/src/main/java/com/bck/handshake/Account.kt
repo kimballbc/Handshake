@@ -13,6 +13,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -23,13 +24,13 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.bck.handshake.components.LoadingIndicator
 import com.bck.handshake.data.Bet
 import com.bck.handshake.data.SupabaseHelper
 import com.bck.handshake.data.sampleRecords
@@ -192,7 +194,7 @@ private fun Tab1Content(
                 bets.forEach { bet ->
                     BetCard(
                         bet = bet,
-                        onBetUpdated = onBetUpdated
+                        currentUserId = SupabaseHelper.getCurrentUserId()
                     )
                 }
             } else {
@@ -207,165 +209,179 @@ private fun Tab1Content(
 }
 
 @Composable
-private fun BetCard(bet: Bet, onBetUpdated: () -> Unit = {}) {
+private fun BetCard(bet: Bet, currentUserId: String?) {
     var isExpanded by remember { mutableStateOf(false) }
     var showOutcomeDialog by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    val currentUserId = remember { SupabaseHelper.getCurrentUserId() }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 4.dp)
             .clickable { isExpanded = !isExpanded },
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "vs ${bet.participant.name}",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = indieFlower
-                        )
-                    )
-                    Text(
-                        text = bet.statusDisplay,
-                        color = when (bet.status) {
-                            "pending" -> MaterialTheme.colorScheme.primary
-                            "accepted" -> MaterialTheme.colorScheme.secondary
-                            "rejected" -> MaterialTheme.colorScheme.error
-                            "completed" -> MaterialTheme.colorScheme.tertiary
-                            else -> MaterialTheme.colorScheme.onSurface
-                        },
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                }
-                
-                Column(
-                    modifier = Modifier.padding(start = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "${bet.prideWagered} Pride",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Image(
-                        painter = painterResource(id = bet.participant.avatar),
-                        contentDescription = "Participant avatar",
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                    )
-                }
+        colors = CardDefaults.cardColors(
+            containerColor = when {
+                isLoading -> MaterialTheme.colorScheme.surfaceVariant
+                bet.status == "completed" && bet.winnerId == currentUserId -> MaterialTheme.colorScheme.primaryContainer
+                bet.status == "completed" && bet.winnerId != null -> MaterialTheme.colorScheme.errorContainer
+                bet.status == "accepted" -> MaterialTheme.colorScheme.secondaryContainer
+                bet.status == "rejected" -> MaterialTheme.colorScheme.errorContainer
+                else -> MaterialTheme.colorScheme.surface
             }
-
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+        )
+    ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
                 ) {
-                    Text(
-                        text = "Description",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = bet.description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-
-                    // Show action buttons based on bet status and user role
-                    if (!isLoading) {
-                        Row(
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "vs ${bet.participant.name}",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontFamily = indieFlower
+                            )
+                        )
+                        Text(
+                            text = bet.statusDisplay,
+                            color = when (bet.status) {
+                                "pending" -> MaterialTheme.colorScheme.primary
+                                "accepted" -> MaterialTheme.colorScheme.secondary
+                                "rejected" -> MaterialTheme.colorScheme.error
+                                "completed" -> MaterialTheme.colorScheme.tertiary
+                                else -> MaterialTheme.colorScheme.onSurface
+                            },
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+                    
+                    Column(
+                        modifier = Modifier.padding(start = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "${bet.prideWagered} Pride",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Image(
+                            painter = painterResource(id = bet.participant.avatar),
+                            contentDescription = "Participant avatar",
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Participant actions
-                            if (!bet.isCreator && bet.status == "pending") {
-                                Button(
-                                    onClick = {
-                                        isLoading = true
-                                        SupabaseHelper.updateBetStatus(bet.id, "accepted") { success, error ->
-                                            isLoading = false
-                                            if (!success) {
-                                                errorMessage = error
-                                            } else {
-                                                onBetUpdated()
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text("Accept")
-                                }
-                                Button(
-                                    onClick = {
-                                        isLoading = true
-                                        SupabaseHelper.updateBetStatus(bet.id, "rejected") { success, error ->
-                                            isLoading = false
-                                            if (!success) {
-                                                errorMessage = error
-                                            } else {
-                                                onBetUpdated()
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.error
-                                    )
-                                ) {
-                                    Text("Reject")
-                                }
-                            }
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                        )
+                    }
+                }
 
-                            // Creator actions
-                            if (bet.isCreator && bet.status == "accepted") {
-                                Button(
-                                    onClick = { showOutcomeDialog = true },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Declare Outcome")
+                AnimatedVisibility(
+                    visible = isExpanded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp)
+                    ) {
+                        Text(
+                            text = "Description",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = bet.description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+
+                        // Action buttons
+                        if (!isLoading) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Participant actions
+                                if (!bet.isCreator && bet.status == "pending") {
+                                    Button(
+                                        onClick = {
+                                            isLoading = true
+                                            SupabaseHelper.updateBetStatus(bet.id, "accepted") { success, error ->
+                                                isLoading = false
+                                                if (!success) {
+                                                    errorMessage = error
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Accept")
+                                    }
+                                    Button(
+                                        onClick = {
+                                            isLoading = true
+                                            SupabaseHelper.updateBetStatus(bet.id, "rejected") { success, error ->
+                                                isLoading = false
+                                                if (!success) {
+                                                    errorMessage = error
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.error
+                                        )
+                                    ) {
+                                        Text("Reject")
+                                    }
+                                }
+
+                                // Creator actions
+                                if (bet.isCreator && bet.status == "accepted") {
+                                    Button(
+                                        onClick = { showOutcomeDialog = true },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Declare Outcome")
+                                    }
                                 }
                             }
                         }
-                    } else {
-                        CircularProgressIndicator(
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        )
-                    }
 
-                    errorMessage?.let {
-                        Text(
-                            text = it,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
+                        errorMessage?.let {
+                            Text(
+                                text = it,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
                     }
+                }
+            }
+
+            // Loading indicator overlay
+            if (isLoading) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                ) {
+                    LoadingIndicator(
+                        modifier = Modifier.padding(16.dp)
+                    )
                 }
             }
         }
@@ -385,7 +401,6 @@ private fun BetCard(bet: Bet, onBetUpdated: () -> Unit = {}) {
                     isLoading = false
                     if (success) {
                         showOutcomeDialog = false
-                        onBetUpdated()
                     } else {
                         errorMessage = error
                     }

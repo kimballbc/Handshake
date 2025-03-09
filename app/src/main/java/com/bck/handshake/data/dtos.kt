@@ -30,7 +30,8 @@ data class Bet(
     val canAccept: Boolean = false,
     val canReject: Boolean = false,
     val canComplete: Boolean = false,
-    val winnerId: String? = null
+    val winnerId: String? = null,
+    val created_at: String? = null
 ) {
     val statusDisplay: String
         get() = when (status) {
