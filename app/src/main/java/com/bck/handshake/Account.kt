@@ -28,13 +28,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -58,9 +61,9 @@ import com.bck.handshake.data.SupabaseHelper
 import com.bck.handshake.data.sampleRecords
 import com.bck.handshake.navigation.BottomNavBar
 import com.bck.handshake.ui.theme.indieFlower
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountScreen(
     currentBets: List<Bet>,
@@ -70,24 +73,17 @@ fun AccountScreen(
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
-    val selectedTab by remember { mutableStateOf(0) }
     var bets by remember { mutableStateOf(currentBets) }
-    var isLoading by remember { mutableStateOf(true) }
+    var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var lastUpdateTime by remember { mutableStateOf(0L) }
     
-    // Function to fetch bets with debouncing
+    // Function to fetch bets
     suspend fun fetchBets() {
-        val currentTime = System.currentTimeMillis()
-        // Only update if more than 2 seconds have passed since last update
-        if (currentTime - lastUpdateTime < 2000) return
-        
         isLoading = true
         SupabaseHelper.getUserBets().fold(
             onSuccess = { fetchedBets ->
-                bets = fetchedBets.filter { it.status != "completed" }
+                bets = fetchedBets.filter { it.status != "completed" && it.status != "rejected" }
                 error = null
-                lastUpdateTime = currentTime
             },
             onFailure = { e ->
                 error = e.message
@@ -96,17 +92,9 @@ fun AccountScreen(
         isLoading = false
     }
 
-    // Initial load
+    // Initial load and when returning to screen
     LaunchedEffect(Unit) {
         fetchBets()
-    }
-
-    // Periodic refresh every 10 seconds instead of 5
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(10000) // 10 second delay
-            fetchBets()
-        }
     }
 
     Box(
@@ -123,16 +111,40 @@ fun AccountScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                // User Avatar
-                Icon(
-                    imageVector = Icons.Filled.Person,
-                    contentDescription = "User image",
+                // Top row with Avatar and Refresh button
+                Row(
                     modifier = Modifier
-                        .padding(top = 16.dp)
-                        .size(86.dp)
-                        .clip(CircleShape)
-                        .border(2.dp, Color.Black, CircleShape)
-                )
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Person,
+                        contentDescription = "User image",
+                        modifier = Modifier
+                            .size(86.dp)
+                            .clip(CircleShape)
+                            .border(2.dp, Color.Black, CircleShape)
+                    )
+                    
+                    IconButton(
+                        onClick = { scope.launch { fetchBets() } },
+                        enabled = !isLoading
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh bets"
+                            )
+                        }
+                    }
+                }
             }
 
             item {
@@ -154,14 +166,8 @@ fun AccountScreen(
                 )
             }
 
-            // Loading State
-            if (isLoading) {
-                item {
-                    CircularProgressIndicator(
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            } else if (error != null) {
+            // Error State
+            if (error != null) {
                 item {
                     Text(
                         text = error!!,
@@ -169,31 +175,31 @@ fun AccountScreen(
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
-            } else {
-                // Active Bets Section
-                if (bets.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "Active Bets",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.padding(top = 16.dp)
-                        )
-                    }
+            }
 
-                    items(bets) { bet ->
-                        BetCard(
-                            bet = bet,
-                            onBetUpdated = { scope.launch { fetchBets() } }
-                        )
-                    }
-                } else {
-                    item {
-                        Text(
-                            text = "No active bets",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+            // Active Bets Section
+            if (bets.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Active Bets",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(top = 16.dp)
+                    )
+                }
+
+                items(bets) { bet ->
+                    BetCard(
+                        bet = bet,
+                        onBetUpdated = { scope.launch { fetchBets() } }
+                    )
+                }
+            } else if (!isLoading) {
+                item {
+                    Text(
+                        text = "No active bets",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -303,9 +309,9 @@ private fun BetCard(
 
     // Define handlers at the beginning of the composable
     fun handleAccept() {
-        isLoading = true
-        errorMessage = null
         scope.launch {
+            isLoading = true
+            errorMessage = null
             SupabaseHelper.updateBetStatus(bet.id, "accepted").fold(
                 onSuccess = {
                     isLoading = false
@@ -320,9 +326,9 @@ private fun BetCard(
     }
 
     fun handleReject() {
-        isLoading = true
-        errorMessage = null
         scope.launch {
+            isLoading = true
+            errorMessage = null
             SupabaseHelper.updateBetStatus(bet.id, "rejected").fold(
                 onSuccess = {
                     isLoading = false
@@ -337,14 +343,14 @@ private fun BetCard(
     }
 
     fun handleComplete(outcome: String) {
-        isLoading = true
-        errorMessage = null
-        val winnerId = when (outcome) {
-            "they_won" -> bet.participant.id
-            "i_won" -> SupabaseHelper.getCurrentUserId()
-            else -> null  // Draw case
-        }
         scope.launch {
+            isLoading = true
+            errorMessage = null
+            val winnerId = when (outcome) {
+                "they_won" -> bet.participant.id
+                "i_won" -> SupabaseHelper.getCurrentUserId()
+                else -> null  // Draw case
+            }
             SupabaseHelper.updateBetStatus(bet.id, "completed", winnerId).fold(
                 onSuccess = {
                     isLoading = false
@@ -360,7 +366,7 @@ private fun BetCard(
     }
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clickable { isExpanded = !isExpanded },
