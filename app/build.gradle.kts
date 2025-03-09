@@ -11,6 +11,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    kotlin("plugin.serialization") version "1.9.0"
 }
 
 android {
@@ -69,7 +70,9 @@ dependencies {
     // Supabase
     implementation(platform("io.github.jan-tennert.supabase:bom:2.1.5"))
     implementation("io.github.jan-tennert.supabase:gotrue-kt:2.1.5")
+    implementation("io.github.jan-tennert.supabase:postgrest-kt:2.1.5")
     implementation("io.ktor:ktor-client-android:2.3.8")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -14,16 +14,11 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.text.KeyboardActions
 import com.bck.handshake.data.Bet
 import com.bck.handshake.data.User
-import com.bck.handshake.data.sampleUser
-import com.bck.handshake.data.sampleUser2
-import com.bck.handshake.data.sampleUser3
+import com.bck.handshake.data.SupabaseHelper
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
-
-// Get list of available users from dtos
-private val availableUsers = listOf(sampleUser, sampleUser2, sampleUser3)
 
 /**
  * NewBet screen implementation.
@@ -41,10 +36,26 @@ fun NewBetScreen(
     var betDescription by remember { mutableStateOf("") }
     var prideWagered by remember { mutableStateOf("") }
     var isParticipantMenuExpanded by remember { mutableStateOf(false) }
+    var availableUsers by remember { mutableStateOf<List<User>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isCreatingBet by remember { mutableStateOf(false) }
     
     val focusManager = LocalFocusManager.current
     val descriptionFocusRequester = remember { FocusRequester() }
     val prideFocusRequester = remember { FocusRequester() }
+
+    // Load available users when the screen is first displayed
+    LaunchedEffect(Unit) {
+        SupabaseHelper.getAvailableUsers { users, error ->
+            isLoading = false
+            if (error != null) {
+                errorMessage = error
+            } else {
+                availableUsers = users
+            }
+        }
+    }
 
     Surface(
         color = MaterialTheme.colorScheme.background,
@@ -75,110 +86,148 @@ fun NewBetScreen(
                     modifier = Modifier.padding(vertical = 16.dp)
                 )
 
-                // Participant Selection
-                ExposedDropdownMenuBox(
-                    expanded = isParticipantMenuExpanded,
-                    onExpandedChange = { isParticipantMenuExpanded = it }
-                ) {
-                    OutlinedTextField(
-                        value = selectedUser?.name ?: "",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Select Participant") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isParticipantMenuExpanded) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor()
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = isParticipantMenuExpanded,
-                        onDismissRequest = { isParticipantMenuExpanded = false }
-                    ) {
-                        availableUsers.forEach { user ->
-                            DropdownMenuItem(
-                                text = { Text(user.name) },
-                                onClick = {
-                                    selectedUser = user
-                                    isParticipantMenuExpanded = false
-                                    descriptionFocusRequester.requestFocus()
-                                }
-                            )
-                        }
-                    }
+                // Show loading indicator while creating bet
+                if (isCreatingBet) {
+                    CircularProgressIndicator()
+                    return@Scaffold
                 }
 
-                // Bet Description
-                OutlinedTextField(
-                    value = betDescription,
-                    onValueChange = { betDescription = it },
-                    label = { Text("Bet Description") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(descriptionFocusRequester),
-                    minLines = 3,
-                    maxLines = 5,
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = ImeAction.Next
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = {
-                            prideFocusRequester.requestFocus()
-                        }
-                    )
-                )
-
-                // Pride Wagered
-                OutlinedTextField(
-                    value = prideWagered,
-                    onValueChange = { 
-                        // Only allow numeric input
-                        if (it.isEmpty() || it.all { char -> char.isDigit() }) {
-                            prideWagered = it
-                        }
-                    },
-                    label = { Text("Pride Wagered") },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            focusManager.clearFocus()
-                        }
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(prideFocusRequester)
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // Only enable the HandshakeSlider if all fields are filled
-                val isFormValid = selectedUser != null && 
-                                betDescription.isNotEmpty() && 
-                                prideWagered.isNotEmpty()
-
-                if (isFormValid) {
-                    HandshakeSlider(
-                        onConfirmed = {
-                            selectedUser?.let { user ->
-                                val bet = Bet(
-                                    participant = user,
-                                    description = betDescription,
-                                    prideWagered = prideWagered.toInt(),
-                                    isConfirmed = true
-                                )
-                                onConfirmed(bet)
-                            }
-                        }
+                // Participant Selection
+                if (isLoading) {
+                    CircularProgressIndicator()
+                } else if (errorMessage != null) {
+                    Text(
+                        text = errorMessage!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 } else {
-                    Text(
-                        text = "Please fill in all fields to continue",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error
+                    ExposedDropdownMenuBox(
+                        expanded = isParticipantMenuExpanded,
+                        onExpandedChange = { isParticipantMenuExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedUser?.name ?: "",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Select Participant") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isParticipantMenuExpanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor()
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = isParticipantMenuExpanded,
+                            onDismissRequest = { isParticipantMenuExpanded = false }
+                        ) {
+                            if (availableUsers.isEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("No users available") },
+                                    onClick = { isParticipantMenuExpanded = false }
+                                )
+                            } else {
+                                availableUsers.forEach { user ->
+                                    DropdownMenuItem(
+                                        text = { Text(user.name) },
+                                        onClick = {
+                                            selectedUser = user
+                                            isParticipantMenuExpanded = false
+                                            descriptionFocusRequester.requestFocus()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Bet Description
+                    OutlinedTextField(
+                        value = betDescription,
+                        onValueChange = { betDescription = it },
+                        label = { Text("Bet Description") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(descriptionFocusRequester),
+                        minLines = 3,
+                        maxLines = 5,
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = {
+                                prideFocusRequester.requestFocus()
+                            }
+                        )
                     )
+
+                    // Pride Wagered
+                    OutlinedTextField(
+                        value = prideWagered,
+                        onValueChange = { 
+                            // Only allow numeric input
+                            if (it.isEmpty() || it.all { char -> char.isDigit() }) {
+                                prideWagered = it
+                            }
+                        },
+                        label = { Text("Pride Wagered") },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                focusManager.clearFocus()
+                            }
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(prideFocusRequester)
+                    )
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    // Only enable the HandshakeSlider if all fields are filled
+                    val isFormValid = selectedUser != null && 
+                                    betDescription.isNotEmpty() && 
+                                    prideWagered.isNotEmpty()
+
+                    if (isFormValid) {
+                        HandshakeSlider(
+                            onConfirmed = {
+                                selectedUser?.let { user ->
+                                    isCreatingBet = true
+                                    SupabaseHelper.createBet(
+                                        participantId = user.id,
+                                        description = betDescription,
+                                        prideWagered = prideWagered.toInt()
+                                    ) { success, error ->
+                                        isCreatingBet = false
+                                        if (success) {
+                                            val bet = Bet(
+                                                id = "", // The ID will be set by Supabase
+                                                participant = user,
+                                                description = betDescription,
+                                                prideWagered = prideWagered.toInt(),
+                                                isConfirmed = false,
+                                                status = "pending",
+                                                isCreator = true
+                                            )
+                                            onConfirmed(bet)
+                                        } else {
+                                            errorMessage = error ?: "Failed to create bet"
+                                        }
+                                    }
+                                }
+                            }
+                        )
+                    } else {
+                        Text(
+                            text = "Please fill in all fields to continue",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         }
