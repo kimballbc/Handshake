@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -324,14 +326,24 @@ private fun CompletedBetCard(bet: Bet, currentUserId: String?) {
                     text = "${bet.prideWagered} Pride",
                     style = MaterialTheme.typography.labelMedium
                 )
-                if (!isDraw) {
-                    Icon(
-                        imageVector = Icons.Default.EmojiEvents,
-                        contentDescription = if (isWinner) "You Won" else "They Won",
-                        tint = if (isWinner) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+                Icon(
+                    imageVector = when {
+                        isDraw -> Icons.Default.Handshake
+                        isWinner -> Icons.Default.EmojiEvents
+                        else -> Icons.AutoMirrored.Filled.TrendingDown
+                    },
+                    contentDescription = when {
+                        isDraw -> "Draw"
+                        isWinner -> "You Won"
+                        else -> "You Lost"
+                    },
+                    tint = when {
+                        isDraw -> MaterialTheme.colorScheme.secondary
+                        isWinner -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.error
+                    },
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
     }

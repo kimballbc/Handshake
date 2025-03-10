@@ -16,9 +16,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -35,13 +37,16 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,9 +58,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.bck.handshake.components.LoadingIndicator
+import com.bck.handshake.components.ProfileDrawer
 import com.bck.handshake.data.Bet
 import com.bck.handshake.data.SupabaseHelper
 import com.bck.handshake.data.sampleRecords
@@ -72,6 +79,7 @@ fun AccountScreen(
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var bets by remember { mutableStateOf(currentBets) }
     var isLoading by remember { mutableStateOf(false) }
@@ -97,126 +105,150 @@ fun AccountScreen(
         fetchBets()
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ProfileDrawer(
+                onSignOut = onSignOut,
+                onDismiss = { scope.launch { drawerState.close() } }
+            )
+        }
     ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 80.dp) // Account for bottom bar
-                .padding(horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        Surface(
+            color = MaterialTheme.colorScheme.background,
+            modifier = Modifier.fillMaxSize()
         ) {
-            item {
-                // Top row with Avatar and Refresh button
-                Row(
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+            ) {
+                LazyColumn(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .fillMaxSize()
+                        .padding(bottom = 80.dp) // Account for bottom bar
+                        .padding(horizontal = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Person,
-                        contentDescription = "User image",
-                        modifier = Modifier
-                            .size(86.dp)
-                            .clip(CircleShape)
-                            .border(2.dp, Color.Black, CircleShape)
-                    )
-                    
-                    IconButton(
-                        onClick = { scope.launch { fetchBets() } },
-                        enabled = !isLoading
-                    ) {
-                        if (isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
+                    item {
+                        // Top row with Profile Icon
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp)
+                        ) {
+                            IconButton(
+                                onClick = { scope.launch { drawerState.open() } },
+                                modifier = Modifier.align(Alignment.TopStart)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Person,
+                                    contentDescription = "Open profile",
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                )
+                            }
+                        }
+                    }
+
+                    // Active Bets Section with Refresh
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Active Bets",
+                                style = MaterialTheme.typography.titleLarge
                             )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Refresh bets"
+                            
+                            IconButton(
+                                onClick = { scope.launch { fetchBets() } },
+                                enabled = !isLoading
+                            ) {
+                                if (isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "Refresh bets"
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Error State
+                    if (error != null) {
+                        item {
+                            Text(
+                                text = error!!,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium
                             )
                         }
                     }
-                }
-            }
 
-            item {
-                // Sign Out Button
-                Button(
-                    onClick = onSignOut,
-                    modifier = Modifier.padding(top = 8.dp)
+                    // Active Bets List
+                    if (bets.isNotEmpty()) {
+                        items(bets) { bet ->
+                            BetCard(
+                                bet = bet,
+                                onBetUpdated = { scope.launch { fetchBets() } }
+                            )
+                        }
+                    } else if (!isLoading) {
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.poor_gator),
+                                    contentDescription = "Sad gator",
+                                    modifier = Modifier.size(200.dp),
+                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onBackground)
+                                )
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                Text(
+                                    text = "It looks like you don't have any current bets...",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Bottom Navigation
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
                 ) {
-                    Text("Sign Out")
-                }
-            }
-
-            item {
-                // Betting Records
-                Text(
-                    text = sampleRecords.formattedRecords,
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.labelMedium
-                )
-            }
-
-            // Error State
-            if (error != null) {
-                item {
-                    Text(
-                        text = error!!,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium
+                    BottomNavBar(
+                        selectedIndex = 0,
+                        onHomeSelected = { /* Already on Home screen */ },
+                        onNewBetSelected = onNewBetClicked,
+                        onRecordsSelected = onRecordsClicked,
+                        modifier = Modifier
                     )
                 }
             }
-
-            // Active Bets Section
-            if (bets.isNotEmpty()) {
-                item {
-                    Text(
-                        text = "Active Bets",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(top = 16.dp)
-                    )
-                }
-
-                items(bets) { bet ->
-                    BetCard(
-                        bet = bet,
-                        onBetUpdated = { scope.launch { fetchBets() } }
-                    )
-                }
-            } else if (!isLoading) {
-                item {
-                    Text(
-                        text = "No active bets",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
-        // Bottom Navigation
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-        ) {
-            BottomNavBar(
-                selectedIndex = 0,
-                onHomeSelected = { /* Already on Home screen */ },
-                onNewBetSelected = onNewBetClicked,
-                onRecordsSelected = onRecordsClicked,
-                modifier = Modifier
-            )
         }
     }
 }
