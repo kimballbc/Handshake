@@ -1,27 +1,22 @@
 package com.bck.handshake
 
+// import androidx.compose.runtime.collectAsState
+// import androidx.lifecycle.viewmodel.compose.viewModel
+// import com.bck.handshake.viewmodel.AuthState
+// import com.bck.handshake.viewmodel.AuthViewModel
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-// import androidx.compose.runtime.collectAsState
-// import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.bck.handshake.auth.LoginScreen
-import com.bck.handshake.data.Bet
 import com.bck.handshake.data.SupabaseHelper
 import com.bck.handshake.ui.theme.TheSideBetTheme
-// import com.bck.handshake.viewmodel.AuthState
-// import com.bck.handshake.viewmodel.AuthViewModel
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -46,6 +41,10 @@ fun MyApp(
         composable("login") {
             LoginScreen(navController)
         }
+        
+//        composable("onboarding") {
+//            LandingScreen(navController)
+//        }
         
         composable("home") {
             AccountScreen(
